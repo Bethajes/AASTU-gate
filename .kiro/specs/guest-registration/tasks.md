@@ -1,0 +1,76 @@
+# Implementation Plan
+
+- [x] 1. Database migration — add GuestPass table and update GateLog
+  - Write a new SQL migration file that creates the `GuestPass` table with all columns defined in the design (id, guestName, phone, purpose, deviceBrand, deviceModel, serialNumber, guestCode, isInCampus, verificationStatus, registeredById, registeredAt)
+  - Write a migration to add nullable `guestPassId` column to `GateLog` and make `laptopId` nullable
+  - _Requirements: 1.1, 1.3, 1.4, 3.1, 3.2_
+
+- [x] 2. Backend — guest controller and routes
+  - [x] 2.1 Implement `generateGuestCode()` utility in `guest.controller.js`
+    - Generate a random 8-digit numeric string, check uniqueness in DB, retry up to 5 times
+    - _Requirements: 1.3_
+  - [x] 2.2 Write unit test for `generateGuestCode`
+    - Verify output is always exactly 8 numeric digits
+    - _Requirements: 1.3_
+  - [x] 2.3 Implement `registerGuest` handler
+    - Validate all required fields (guestName, phone, purpose, deviceBrand, deviceModel, serialNumber); return 400 with field name if any missing
+    - Call `generateGuestCode`, insert GuestPass row with defaults (verificationStatus VERIFIED, isInCampus false)
+    - Return created record including guestCode
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+  - [x] 2.4 Write property test for Property 1 — GuestPass creation invariants
+    - **Property 1: GuestPass creation invariants**
+    - **Validates: Requirements 1.1, 1.3, 1.4**
+  - [x] 2.5 Write property test for Property 2 — Missing required field rejection
+    - **Property 2: Missing required field rejection**
+    - **Validates: Requirements 1.2**
+  - [x] 2.6 Implement `lookupGuest` handler
+    - Query GuestPass by guestCode, return all fields except any photo field; return 404 if not found
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 2.7 Write property test for Property 3 — Guest pass lookup round trip
+    - **Property 3: Guest pass lookup round trip**
+    - **Validates: Requirements 2.1, 2.2, 2.4**
+  - [x] 2.8 Implement `guestEntry` handler
+    - Reject if BLOCKED (403) or already in campus (400); update isInCampus to true; insert GateLog with scanType IN and guestPassId
+    - _Requirements: 3.1, 3.3, 3.4_
+  - [x] 2.9 Implement `guestExit` handler
+    - Reject if BLOCKED (403) or already outside campus (400); update isInCampus to false; insert GateLog with scanType OUT and guestPassId
+    - _Requirements: 3.2, 3.3, 3.5_
+  - [x] 2.10 Write property test for Property 4 — Entry then exit round trip
+    - **Property 4: Entry then exit round trip restores campus state**
+    - **Validates: Requirements 3.1, 3.2**
+  - [x] 2.11 Write property test for Property 5 — Blocked guest pass rejects entry and exit
+    - **Property 5: Blocked guest pass rejects entry and exit**
+    - **Validates: Requirements 3.3**
+  - [x] 2.12 Create `guest.routes.js` and register under `/api/guests` in `index.js`
+    - POST `/register`, GET `/lookup`, POST `/entry/:id`, POST `/exit/:id`
+    - All routes protected with `allowRoles('GUARD', 'ADMIN')`
+    - _Requirements: 1.1, 2.1, 3.1, 3.2_
+
+- [ ] 3. Checkpoint — Ensure all tests pass, ask the user if questions arise.
+
+- [x] 4. Backend — extend existing gate endpoints
+  - [x] 4.1 Extend `lookupLaptop` in `gate.controller.js` to also search GuestPass
+    - If code matches a GuestPass, return the guest record with `type: 'guest'`; if matches Laptop, return with `type: 'laptop'`
+    - _Requirements: 2.1_
+  - [x] 4.2 Extend `getLogs` in `gate.controller.js` to include guest pass events
+    - LEFT JOIN GuestPass on GateLog.guestPassId; return guestName, deviceBrand, serialNumber, scanType, timestamp for guest rows
+    - _Requirements: 4.1, 4.2_
+  - [x] 4.3 Write property test for Property 6 — Guest events appear in gate log
+    - **Property 6: Guest events appear in gate log with required fields**
+    - **Validates: Requirements 4.1, 4.2**
+
+- [x] 5. Frontend — Guard Scanner page updates
+  - [x] 5.1 Add tab/toggle UI to `GuardScanner.jsx` for "Scan" and "Register Guest" views
+    - _Requirements: 5.1, 5.2_
+  - [x] 5.2 Build inline `GuestRegistrationForm` section inside `GuardScanner.jsx`
+    - Fields: Full Name, Phone Number, Purpose of Visit, Device Brand, Device Model, Device Serial Number — no photo field
+    - On success: display generated Guest Code prominently and reset form
+    - _Requirements: 1.1, 1.5, 5.3_
+  - [x] 5.3 Update scan lookup logic to handle `type: 'guest'` responses
+    - When result type is `'guest'`, render guest details card (no photo section); route entry/exit to `/api/guests/entry/:id` and `/api/guests/exit/:id`
+    - _Requirements: 2.2, 2.4, 3.1, 3.2_
+  - [x] 5.4 Update recent scans log to display guest events with a guest indicator label
+    - Show guest name, device brand, serial number, scan type, timestamp; add a "👤 Guest" badge to distinguish from laptop events
+    - _Requirements: 4.2, 4.3_
+
+- [ ] 6. Final Checkpoint — Ensure all tests pass, ask the user if questions arise.

@@ -1,0 +1,1 @@
+rm prisma.config.ts

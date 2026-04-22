@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  GUARD
+  ADMIN
+}
+
+enum ScanType {
+  IN
+  OUT
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  BLOCKED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  studentId String?  @unique
+  email     String   @unique
+  password  String
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+
+  isVerified             Boolean   @default(false)
+  verificationCode       String?
+  verificationCodeExpiry DateTime?
+
+  laptops          Laptop[]
+  scanLogs         GateLog[]
+  verifiedLaptops  Laptop[]    @relation("LaptopVerifier")
+  guestPasses      GuestPass[]
+}
+
+model Laptop {
+  id           String   @id @default(uuid())
+  serialNumber String   @unique
+  brand        String
+  model        String
+  qrCode       String?  @unique
+  isInCampus   Boolean  @default(false)
+  registeredAt DateTime @default(now())
+  photoUrl     String?
+
+  ownerId  String
+  owner    User      @relation(fields: [ownerId], references: [id])
+  gateLogs GateLog[]
+
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  verifiedById       String?
+  verifiedBy         User?              @relation("LaptopVerifier", fields: [verifiedById], references: [id])
+}
+
+model GateLog {
+  id        String   @id @default(uuid())
+  scanType  ScanType
+  scannedAt DateTime @default(now())
+
+  laptopId    String?
+  laptop      Laptop?    @relation(fields: [laptopId], references: [id])
+
+  guestPassId String?
+  guestPass   GuestPass? @relation(fields: [guestPassId], references: [id])
+
+  scannedById String
+  scannedBy   User   @relation(fields: [scannedById], references: [id])
+
+  action      String?
+}
+
+model GuestPass {
+  id                 String             @id @default(uuid())
+  guestName          String
+  phone              String
+  purpose            String
+  deviceBrand        String
+  deviceModel        String
+  serialNumber       String
+  guestCode          String             @unique @db.Char(8)
+  isInCampus         Boolean            @default(false)
+  verificationStatus VerificationStatus @default(VERIFIED)
+  registeredById     String
+  registeredBy       User               @relation(fields: [registeredById], references: [id])
+  registeredAt       DateTime           @default(now())
+  gateLogs           GateLog[]
+}
