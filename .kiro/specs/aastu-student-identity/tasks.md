@@ -1,0 +1,136 @@
+# Implementation Plan
+
+- [x] 1. Database migration — add OTP and pendingEmail columns to Student
+  - Add `otpCode String?`, `otpExpiry DateTime?`, and `pendingEmail String?` to the `Student` model in `backend/prisma/schema.prisma`
+  - Write and run a new Prisma migration: `npx prisma migrate dev --name add_student_otp_fields`
+  - _Requirements: 3.4, 4.6_
+
+- [x] 2. Extend auth utilities
+  - [x] 2.1 Update `generateOTPExpiry` in `backend/src/lib/authUtils.js` to accept an optional `minutes` parameter (default 5)
+    - _Requirements: 3.4_
+  - [x] 2.2 Add `generateOtpToken(studentId, email)` — signs a JWT with `{ studentId, email, purpose: 'otp-verified' }`, expires in 10 minutes
+    - Add `verifyOtpToken(token)` — verifies and decodes the token, returns `{ studentId, email }` or null
+    - _Requirements: 4.2, 5.4_
+  - [x] 2.3 Write property test for OTP token round-trip (Property 4)
+    - **Property 4: OTP token round-trip**
+    - **Validates: Requirements 4.2, 5.4**
+
+- [x] 3. Add `sendOtpEmail` to email service
+  - Add `sendOtpEmail(to, code)` to `backend/src/lib/email.service.js`
+  - Subject: "Activate your AASTU account", body includes the 6-digit code and "expires in 5 minutes"
+  - _Requirements: 10.1, 10.2, 10.3_
+
+- [-] 4. Implement `sendOtp` controller
+  - [x] 4.1 Add `sendOtp(req, res)` to `backend/src/controllers/auth.controller.js`
+    - Accept `{ student_id, email }` in request body
+    - Return 400 if `student_id` or `email` is missing/empty
+    - Look up `Student` by `student_id`; return 404 if not found
+    - Return 409 if `student.isActivated = true`
+    - Validate email with `isInstitutionalEmail`; return 400 if invalid
+    - Check `User` table for existing account with that email; return 409 if found
+    - Check `Student` table for existing activated record with that email; return 409 if found
+    - Generate OTP and 5-minute expiry; update `Student` with `otpCode`, `otpExpiry`, `pendingEmail`
+    - Call `sendOtpEmail(email, code)`; return 500 on failure
+    - Return 200 `{ message: "OTP sent" }`
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 6.3_
+  - [x] 4.2 Write property test for email domain enforcement (Property 1)
+    - **Property 1: Institutional email domain enforcement**
+    - **Validates: Requirements 3.1, 3.2**
+  - [x] 4.3 Write property test for duplicate email rejection (Property 7)
+    - **Property 7: Duplicate email rejection**
+    - **Validates: Requirements 3.3**
+  - [x] 4.4 Write property test for already-activated rejection on send-otp (Property 6)
+    - **Property 6: Activation is idempotent — already-activated students are rejected**
+    - **Validates: Requirements 1.4, 6.3**
+
+- [x] 5. Implement `verifyOtp` controller
+  - [x] 5.1 Add `verifyOtp(req, res)` to `backend/src/controllers/auth.controller.js`
+    - Accept `{ student_id, code }` in request body
+    - Return 400 if either field is missing/empty
+    - Look up `Student` by `student_id`; return 404 if not found
+    - Return 409 if `student.isActivated = true`
+    - Return 400 if `student.otpCode` is null or does not match `code`
+    - Return 400 if `student.otpExpiry` is in the past
+    - Clear `otpCode` and `otpExpiry` on the `Student` record
+    - Call `generateOtpToken(student_id, student.pendingEmail)` and return `{ otpToken }`
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.6_
+  - [x] 5.2 Write property test for OTP expiry enforcement (Property 2)
+    - **Property 2: OTP expiry enforcement**
+    - **Validates: Requirements 4.4**
+  - [x] 5.3 Write property test for OTP clearance after verification (Property 3)
+    - **Property 3: OTP clearance after verification**
+    - **Validates: Requirements 4.6**
+
+- [x] 6. Update `setPassword` controller
+  - [x] 6.1 Update `setPassword` in `backend/src/controllers/auth.controller.js` to accept `otpToken` instead of `email`
+    - Accept `{ student_id, otpToken, password }` in request body
+    - Return 400 if any field is missing/empty
+    - Call `verifyOtpToken(otpToken)`; return 401 if null or if `studentId` does not match `student_id`
+    - Look up `Student` by `student_id`; return 404 if not found
+    - Return 409 if `student.isActivated = true`
+    - Return 400 if `password.length < 6`
+    - Hash password with bcrypt (10 rounds)
+    - Insert `User` with `role = STUDENT`, `studentId`, `name`, `email` from token payload
+    - Update `Student`: `isActivated = true`, `email = tokenPayload.email`, `pendingEmail = null`
+    - Return 201 `{ message, user: { id, name, role } }`
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
+  - [x] 6.2 Write property test for set-password requiring valid OTP token (Property 5)
+    - **Property 5: Password creation requires valid OTP token**
+    - **Validates: Requirements 5.1, 5.4**
+  - [x] 6.3 Write property test for bcrypt round-trip (Property 8)
+    - **Property 8: Password bcrypt round-trip**
+    - **Validates: Requirements 5.3**
+
+- [x] 7. Update `activateStudent` controller
+  - Update `activateStudent` in `backend/src/controllers/auth.controller.js` to accept only `student_id`
+  - Derive `username` server-side using `usernameFromStudentId` (or keep existing username lookup)
+  - Remove the `username` requirement from the request body
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
+- [x] 8. Add OTP resend support and update auth routes
+  - [x] 8.1 Ensure `sendOtp` handles resend: calling it again for the same student replaces `otpCode`, `otpExpiry`, and `pendingEmail`
+    - _Requirements: 4.5_
+  - [x] 8.2 Write property test for OTP resend resets expiry (Property 9)
+    - **Property 9: OTP resend resets expiry**
+    - **Validates: Requirements 4.5**
+  - [x] 8.3 Register new routes in `backend/src/routes/auth.routes.js`
+    - Add `POST /auth/send-otp` → `sendOtp` with rate limiter (5 req / 15 min per IP)
+    - Add `POST /auth/verify-otp` → `verifyOtp`
+    - _Requirements: 3.5, 6.1_
+
+- [x] 9. Checkpoint — ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 10. Update `Activate.jsx` wizard to 4-step flow
+  - [x] 10.1 Update Step 1 to accept only `student_id` and call `POST /auth/activate`
+    - Remove username input; derive username internally if needed
+    - _Requirements: 1.1, 7.1_
+  - [x] 10.2 Keep Step 2 (identity confirmation) unchanged
+    - _Requirements: 2.1, 2.2, 2.3_
+  - [x] 10.3 Add Step 3: email input sub-step
+    - Show email input with placeholder `firstname.fathername@aastustudent.edu.et`
+    - On submit, call `POST /auth/send-otp { student_id, email }`
+    - On success, advance to OTP input sub-step
+    - _Requirements: 3.1, 7.2_
+  - [x] 10.4 Add Step 3b: OTP input sub-step
+    - Show 6-digit code input, Submit button, and Resend Code button
+    - On submit, call `POST /auth/verify-otp { student_id, code }`; store returned `otpToken` in state
+    - On resend, call `POST /auth/send-otp` again with same email
+    - On success, advance to Step 4
+    - _Requirements: 4.1, 4.5, 7.3_
+  - [x] 10.5 Update Step 4: password creation — remove email field, use stored `otpToken`
+    - Show password and confirm password fields only
+    - On submit, call `POST /auth/set-password { student_id, otpToken, password }`
+    - Validate passwords match client-side before submitting
+    - On success, auto-login and navigate to `/student`
+    - _Requirements: 5.1, 7.4, 7.5_
+  - [x] 10.6 Update step indicator from 3 dots to 4 dots
+    - _Requirements: 7.1_
+
+- [x] 11. Remove manual student self-registration
+  - Remove or disable the `register` endpoint in `backend/src/controllers/auth.controller.js` (return 410 Gone)
+  - Remove the Register route and page link from `frontend/src/App.jsx` and `frontend/src/pages/Login.jsx`
+  - _Requirements: 8.1, 8.2, 8.3_
+
+- [x] 12. Final Checkpoint — ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

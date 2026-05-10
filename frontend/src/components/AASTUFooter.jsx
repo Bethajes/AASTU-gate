@@ -11,7 +11,7 @@ export default function AASTUFooter() {
           Addis Ababa Science and Technology University
         </p>
         <div style={styles.meta}>
-          <span>Laptop Gate Pass System</span>
+          <span>Official ICT Campus Security Operations Platform</span>
           <span style={styles.separator} aria-hidden>
             ·
           </span>

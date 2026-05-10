@@ -1,24 +1,28 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../api/axios'
 import AASTULogo from '../components/AASTULogo'
 import AuthPageLayout from '../components/AuthPageLayout'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const successMessage = location.state?.message || ''
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     try {
-      const res = await API.post('/auth/login', { email, password })
+      const payload = { username, password }
+
+      const res = await API.post('/auth/login', payload)
       login(res.data.user, res.data.token)
       if (res.data.user.role === 'STUDENT') navigate('/student')
       else if (res.data.user.role === 'GUARD') navigate('/guard')
@@ -37,23 +41,24 @@ export default function Login() {
           <AASTULogo orientation="stacked" showText tone="onLight" />
         </div>
         <h1 style={styles.title}>Welcome back</h1>
-        <p style={styles.subtitle}>Sign in with your university email</p>
 
         {error && <div style={styles.error}>{error}</div>}
+        {!error && successMessage && <div style={styles.success}>{successMessage}</div>}
 
         <form onSubmit={handleSubmit}>
           <div style={styles.field}>
-            <label style={styles.label}>Email</label>
+            <label style={styles.label}>Username</label>
             <input
               className="auth-input"
               style={styles.input}
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="your@email.com"
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="e.g. ETS02315"
               required
             />
           </div>
+
           <div style={styles.field}>
             <label style={styles.label}>Password</label>
             <input
@@ -66,13 +71,14 @@ export default function Login() {
               required
             />
           </div>
+
           <button style={styles.button} type="submit" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
         <p style={styles.link}>
-          No account? <Link to="/register">Create one</Link>
+          No account? <Link to="/activate">Activate your account</Link>
         </p>
         <p style={styles.link}>
           <Link to="/forgot-password">Forgot password?</Link>
@@ -99,23 +105,46 @@ const styles = {
     marginBottom: '28px',
   },
   title: {
-    margin: '0 0 8px',
+    margin: '0 0 20px',
     fontSize: '26px',
     fontWeight: '700',
     color: '#0033A0',
     textAlign: 'center',
     letterSpacing: '-0.02em',
   },
-  subtitle: {
-    margin: '0 0 28px',
+  toggle: {
+    display: 'flex',
+    borderRadius: '10px',
+    border: '2px solid #e0e0e0',
+    overflow: 'hidden',
+    marginBottom: '24px',
+  },
+  toggleBtn: {
+    flex: 1,
+    padding: '10px',
+    border: 'none',
+    background: 'transparent',
     fontSize: '14px',
-    color: '#5c6570',
-    textAlign: 'center',
-    lineHeight: 1.45,
+    fontWeight: '600',
+    color: '#666',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  toggleBtnActive: {
+    background: '#0033A0',
+    color: '#fff',
   },
   error: {
     backgroundColor: '#fff0f0',
     color: '#e53e3e',
+    padding: '12px 16px',
+    borderRadius: '10px',
+    marginBottom: '20px',
+    fontSize: '14px',
+  },
+  success: {
+    backgroundColor: '#e8f5e9',
+    color: '#2e7d32',
     padding: '12px 16px',
     borderRadius: '10px',
     marginBottom: '20px',

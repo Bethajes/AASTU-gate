@@ -148,7 +148,7 @@ export default function GuardScanner() {
                   {laptopDetails.photo_url ? (
                     <div style={styles.photoContainer}>
                       <img 
-                        src={`http://localhost:5000${laptopDetails.photo_url}`} 
+                        src={`http://localhost:5001${laptopDetails.photo_url}`} 
                         alt={laptopDetails.brand}
                         style={styles.laptopPhotoLarge}
                       />

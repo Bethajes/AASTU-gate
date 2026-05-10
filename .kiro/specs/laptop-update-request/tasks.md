@@ -1,23 +1,23 @@
 # Implementation Plan — Laptop Update Request
 
-- [ ] 1. Add database migration for laptop_update_requests table
+- [x] 1. Add database migration for laptop_update_requests table
   - Write raw SQL migration file creating the `UpdateRequestStatus` enum and `laptop_update_requests` table with FK constraints to `Laptop` and `User`
   - Update `backend/prisma/schema.prisma` to add the `LaptopUpdateRequest` model and back-relations on `Laptop` and `User`
   - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
-- [ ] 2. Implement the update request controller
-- [ ] 2.1 Implement `createUpdateRequest` handler
+- [x] 2. Implement the update request controller
+- [x] 2.1 Implement `createUpdateRequest` handler
   - Validate that at least one of `newBrand`, `newSerialNumber`, or photo is provided
   - Verify the target laptop belongs to the requesting student (403 if not)
   - Check for an existing PENDING request for the same laptop (409 if found)
   - Insert a new row into `laptop_update_requests` with status PENDING
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.3_
 
-- [ ]* 2.2 Write property test for Property 1: Request creation invariants
+- [x] 2.2 Write property test for Property 1: Request creation invariants
   - **Property 1: Request creation invariants**
   - **Validates: Requirements 1.1, 1.2, 1.3, 1.4**
 
-- [ ]* 2.3 Write property test for Property 2: Ownership enforcement
+- [x] 2.3 Write property test for Property 2: Ownership enforcement
   - **Property 2: Ownership enforcement**
   - **Validates: Requirements 1.5**
 
@@ -25,7 +25,7 @@
   - **Property 4: Duplicate PENDING request prevention**
   - **Validates: Requirements 2.3**
 
-- [ ] 2.5 Implement `listUpdateRequests` handler (Reviewer)
+- [x] 2.5 Implement `listUpdateRequests` handler (Reviewer)
   - JOIN `laptop_update_requests` with `Laptop` and `User` to return current laptop data, proposed new data, and student info
   - Return all requests ordered by `requestedAt` descending
   - _Requirements: 3.1, 3.2, 3.3_
@@ -34,7 +34,7 @@
   - **Property 5: Reviewer list contains full comparison data**
   - **Validates: Requirements 3.1, 3.2, 3.3**
 
-- [ ] 2.7 Implement `approveUpdateRequest` handler
+- [x] 2.7 Implement `approveUpdateRequest` handler
   - Fetch the request; return 404 if not found, 409 if status is not PENDING
   - Update the `Laptop` row with non-null new values from the request
   - Set `Laptop.verificationStatus` to PENDING
@@ -49,7 +49,7 @@
   - **Property 7: Non-PENDING requests reject approve/reject with 409**
   - **Validates: Requirements 4.4, 5.3**
 
-- [ ] 2.10 Implement `rejectUpdateRequest` handler
+- [x] 2.10 Implement `rejectUpdateRequest` handler
   - Fetch the request; return 404 if not found, 409 if status is not PENDING
   - Set request status to REJECTED, `reviewedAt` to NOW(), `reviewedById` to reviewer's ID
   - Leave the `Laptop` row unchanged

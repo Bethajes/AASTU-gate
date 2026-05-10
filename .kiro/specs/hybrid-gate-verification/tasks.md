@@ -15,7 +15,7 @@
   - Return 404 if not found
   - _Requirements: 8.1, 3.2_
 
-- [ ] 2.2 Write property test for lookup (Property 11)
+- [x] 2.2 Write property test for lookup (Property 11)
   - **Property 11: Lookup by code and lookup by studentId return equivalent records**
   - **Validates: Requirements 8.1**
 

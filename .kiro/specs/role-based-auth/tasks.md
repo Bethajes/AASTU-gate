@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Harden the register endpoint in the backend
+- [-] 1. Harden the register endpoint in the backend
   - In `backend/src/controllers/auth.controller.js`, remove `role` from destructuring
   - Add check: `if (req.body.role) return res.status(403).json({ message: 'Role assignment is not allowed' })`
   - Hardcode `role = 'STUDENT'` in both the Prisma-style and fallback INSERT paths

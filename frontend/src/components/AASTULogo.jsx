@@ -103,7 +103,7 @@ function FallbackLogo({ orientation, showText, tone, style: outerStyle }) {
           AASTU
         </div>
         <div style={{ fontSize: row ? 11 : 12, color: subColor, fontWeight: 600, lineHeight: 1.2, marginTop: 2 }}>
-          Laptop Gate Pass
+          ICT & Campus Security
         </div>
       </div>
     </div>

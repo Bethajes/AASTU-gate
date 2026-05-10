@@ -120,9 +120,11 @@ export const lookupLaptop = async (req, res) => {
                 l."verifiedById" as verified_by_id,
                 vb."name" as verified_by_name,
                 owner."name" as owner_name,
-                owner."studentId" as student_id
+                owner."studentId" as student_id,
+                student."photo" as student_photo_url
          FROM "Laptop" l
          JOIN "User" owner ON l."ownerId" = owner."id"
+         LEFT JOIN "Student" student ON owner."studentId" = student."id"
          LEFT JOIN "User" vb ON l."verifiedById" = vb."id"
          WHERE l."qrCode" = $1`,
         [code]
@@ -137,9 +139,11 @@ export const lookupLaptop = async (req, res) => {
                 l."verifiedById" as verified_by_id,
                 vb."name" as verified_by_name,
                 owner."name" as owner_name,
-                owner."studentId" as student_id
+                owner."studentId" as student_id,
+                student."photo" as student_photo_url
          FROM "Laptop" l
          JOIN "User" owner ON l."ownerId" = owner."id"
+         LEFT JOIN "Student" student ON owner."studentId" = student."id"
          LEFT JOIN "User" vb ON l."verifiedById" = vb."id"
          WHERE owner."studentId" = $1`,
         [studentId]

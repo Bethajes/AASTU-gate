@@ -26,9 +26,9 @@ export const registerLaptop = async (req, res) => {
     const id = crypto.randomUUID()
 
     const result = await pool.query(
-      `INSERT INTO "Laptop" ("id", "serialNumber", "brand", "model", "qrCode", "ownerId", "photoUrl")
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [id, serialNumber, brand, model, qrData, ownerId, photoUrl]
+      `INSERT INTO "Laptop" ("id", "serialNumber", "brand", "model", "qrCode", "ownerId", "photoUrl", "verificationStatus")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [id, serialNumber, brand, model, qrData, ownerId, photoUrl, 'PENDING']
     )
 
     const row = result.rows[0]
@@ -52,7 +52,13 @@ export const registerLaptop = async (req, res) => {
     if (isUniqueViolation(err)) {
       return res.status(400).json({ message: 'Serial number already registered' })
     }
-    console.error('REGISTER LAPTOP ERROR:', err)
+    console.error('REGISTER LAPTOP ERROR:', {
+      message: err.message,
+      stack: err.stack,
+      userId: ownerId,
+      serialNumber,
+      code: err.code
+    })
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
@@ -86,6 +92,11 @@ export const getMyLaptops = async (req, res) => {
       verified_by_name: row.verified_by_name,
     })))
   } catch (err) {
+    console.error('GET MY LAPTOPS ERROR:', {
+      message: err.message,
+      stack: err.stack,
+      userId: req.user.id
+    })
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
@@ -117,6 +128,12 @@ export const getAllLaptops = async (req, res) => {
       verified_by_name: row.verified_by_name,
     })))
   } catch (err) {
+    console.error('GET ALL LAPTOPS ERROR:', {
+      message: err.message,
+      stack: err.stack,
+      userId: req.user.id,
+      userRole: req.user.role
+    })
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
@@ -145,7 +162,12 @@ export const regenerateCode = async (req, res) => {
 
     res.json({ qrCodeNumber: newCode, qrImage })
   } catch (err) {
-    console.error('REGENERATE CODE ERROR:', err)
+    console.error('REGENERATE CODE ERROR:', {
+      message: err.message,
+      stack: err.stack,
+      userId: ownerId,
+      laptopId: id
+    })
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
@@ -169,7 +191,12 @@ export const updatePhoto = async (req, res) => {
     }
     res.json({ photo_url: result.rows[0].photoUrl })
   } catch (err) {
-    console.error('UPDATE PHOTO ERROR:', err)
+    console.error('UPDATE PHOTO ERROR:', {
+      message: err.message,
+      stack: err.stack,
+      userId: ownerId,
+      laptopId: id
+    })
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
@@ -228,7 +255,13 @@ export const editLaptop = async (req, res) => {
     if (isUniqueViolation(err)) {
       return res.status(400).json({ message: 'Serial number already in use' })
     }
-    console.error('EDIT LAPTOP ERROR:', err)
+    console.error('EDIT LAPTOP ERROR:', {
+      message: err.message,
+      stack: err.stack,
+      userId: ownerId,
+      laptopId: id,
+      code: err.code
+    })
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
@@ -266,6 +299,12 @@ export const getLaptopByCode = async (req, res) => {
       verified_by_name: row.verified_by_name,
     })
   } catch (err) {
+    console.error('GET LAPTOP BY CODE ERROR:', {
+      message: err.message,
+      stack: err.stack,
+      code: req.params.code,
+      userId: req.user?.id
+    })
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }

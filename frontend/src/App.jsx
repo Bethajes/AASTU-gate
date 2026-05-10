@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Login from './pages/Login'
-import Register from './pages/Register'
+import Activate from './pages/Activate'
 import ForgotPassword from './pages/ForgotPassword'
 import StudentDashboard from './pages/StudentDashboard'
 import GuardScanner from './pages/GuardScanner'
@@ -20,7 +20,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/activate" element={<Activate />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/student" element={
           <PrivateRoute roles={['STUDENT']}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import AASTUHeader from '../components/AASTUHeader'
 import AASTUFooter from '../components/AASTUFooter'
+import { buildPhotoUrl } from '../utils/photoUrl'
 import {
   lookupLaptop,
   verifyLaptop,
@@ -13,7 +14,7 @@ import {
   guestExit,
 } from '../api/gate'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = 'http://localhost:5001'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -422,10 +423,19 @@ export default function GuardDashboard() {
                   )}
 
                   <div style={styles.laptopContent}>
-                    <div style={styles.photoWrap}>
-                      {record.photo_url
-                        ? <img src={`${BASE_URL}${record.photo_url}`} alt={record.brand} style={styles.photo} />
-                        : <div style={styles.noPhoto}>💻</div>}
+                    <div style={styles.photoColumns}>
+                      <div style={styles.photoWrap}>
+                        {record.photo_url
+                          ? <img src={buildPhotoUrl(record.photo_url)} alt={`${record.brand} laptop`} style={styles.photo} />
+                          : <div style={styles.noPhoto}>💻</div>}
+                        <div style={styles.photoLabel}>Laptop Photo</div>
+                      </div>
+                      <div style={styles.photoWrap}>
+                        {record.student_photo_url
+                          ? <img src={buildPhotoUrl(record.student_photo_url)} alt={`${record.owner_name} student`} style={styles.photo} />
+                          : <div style={styles.noPhoto}>👤</div>}
+                        <div style={styles.photoLabel}>Student Photo</div>
+                      </div>
                     </div>
                     <div style={styles.details}>
                       <Row label="Owner"         value={record.owner_name} />
@@ -574,9 +584,11 @@ const styles = {
 
   // Laptop card
   laptopContent: { display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '24px' },
-  photoWrap: { flexShrink: 0 },
+  photoColumns: { display: 'flex', gap: '16px', flexWrap: 'wrap' },
+  photoWrap: { flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' },
   photo: { width: '160px', height: '160px', objectFit: 'cover', borderRadius: '12px', border: '3px solid #FFD700' },
   noPhoto: { width: '160px', height: '160px', borderRadius: '12px', backgroundColor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px', border: '2px dashed #ccc' },
+  photoLabel: { fontSize: '13px', color: '#555', fontWeight: '600' },
   details: { flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' },
   detailRow: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
   detailLabel: { fontWeight: '600', color: '#555', minWidth: '120px', fontSize: '13px' },

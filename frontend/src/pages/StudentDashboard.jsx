@@ -3,7 +3,7 @@ import API from '../api/axios'
 import AASTUHeader from '../components/AASTUHeader'
 import AASTUFooter from '../components/AASTUFooter'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = 'http://localhost:5001'
 
 function verificationBadgeStyle(status) {
   switch (status) {

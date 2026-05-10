@@ -1,0 +1,1 @@
+ALTER TABLE "Student" ADD COLUMN IF NOT EXISTS "password_hash" TEXT;

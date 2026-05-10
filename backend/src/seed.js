@@ -10,12 +10,14 @@ import pool from './lib/db.js'
 const accounts = [
   {
     name: 'System Admin',
+    username: 'admin',
     email: 'admin@aastu.edu',
     password: 'Admin@1234',
     role: 'ADMIN',
   },
   {
     name: 'Gate Guard',
+    username: 'guard',
     email: 'guard@aastu.edu',
     password: 'Guard@1234',
     role: 'GUARD',
@@ -24,18 +26,21 @@ const accounts = [
 
 async function seed() {
   for (const account of accounts) {
-    const existing = await pool.query(`SELECT id FROM "User" WHERE email = $1`, [account.email])
+    const existing = await pool.query(
+      `SELECT id FROM "User" WHERE email = $1 OR username = $2`,
+      [account.email, account.username]
+    )
     if (existing.rows.length) {
-      console.log(`⚠️  ${account.role} account already exists: ${account.email}`)
+      console.log(`⚠️  ${account.role} account already exists: ${account.email} / ${account.username}`)
       continue
     }
     const hashed = await bcrypt.hash(account.password, 10)
     await pool.query(
-      `INSERT INTO "User" (id, name, email, password, role, "isVerified", "studentId")
-       VALUES ($1, $2, $3, $4, $5::"Role", true, NULL)`,
-      [crypto.randomUUID(), account.name, account.email, hashed, account.role]
+      `INSERT INTO "User" (id, name, username, email, password, role, "isVerified", "studentId")
+       VALUES ($1, $2, $3, $4, $5, $6::"Role", true, NULL)`,
+      [crypto.randomUUID(), account.name, account.username, account.email, hashed, account.role]
     )
-    console.log(`✅  Created ${account.role}: ${account.email} / ${account.password}`)
+    console.log(`✅  Created ${account.role}: ${account.username} / ${account.password}`)
   }
   await pool.end()
 }

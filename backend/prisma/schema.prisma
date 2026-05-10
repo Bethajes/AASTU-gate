@@ -12,6 +12,12 @@ enum Role {
   ADMIN
 }
 
+enum UpdateRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ScanType {
   IN
   OUT
@@ -26,6 +32,7 @@ enum VerificationStatus {
 model User {
   id        String   @id @default(uuid())
   name      String
+  username  String?  @unique
   studentId String?  @unique
   email     String   @unique
   password  String
@@ -36,10 +43,33 @@ model User {
   verificationCode       String?
   verificationCodeExpiry DateTime?
 
+  student  Student? @relation(fields: [studentId], references: [id])
+
   laptops          Laptop[]
   scanLogs         GateLog[]
   verifiedLaptops  Laptop[]    @relation("LaptopVerifier")
   guestPasses      GuestPass[]
+
+  studentUpdateRequests LaptopUpdateRequest[] @relation("StudentUpdateRequests")
+  reviewedRequests      LaptopUpdateRequest[] @relation("ReviewerUpdateRequests")
+}
+
+model Student {
+  id          String  @id
+  username    String  @unique
+  name        String
+  email       String? @unique
+  photo       String?
+  department  String
+  passwordHash String? @map("password_hash")
+  isActivated Boolean @default(false)
+
+  // OTP activation state (cleared after successful verification)
+  otpCode      String?
+  otpExpiry    DateTime?
+  pendingEmail String?
+
+  user User?
 }
 
 model Laptop {
@@ -60,6 +90,8 @@ model Laptop {
   verifiedAt         DateTime?
   verifiedById       String?
   verifiedBy         User?              @relation("LaptopVerifier", fields: [verifiedById], references: [id])
+
+  updateRequests LaptopUpdateRequest[]
 }
 
 model GateLog {
@@ -94,4 +126,23 @@ model GuestPass {
   registeredBy       User               @relation(fields: [registeredById], references: [id])
   registeredAt       DateTime           @default(now())
   gateLogs           GateLog[]
+}
+
+model LaptopUpdateRequest {
+  id              String              @id @default(uuid())
+  laptopId        String
+  laptop          Laptop              @relation(fields: [laptopId], references: [id])
+  studentId       String
+  student         User                @relation("StudentUpdateRequests", fields: [studentId], references: [id])
+  newBrand        String?
+  newSerialNumber String?
+  newImage        String?
+  reason          String?
+  status          UpdateRequestStatus @default(PENDING)
+  requestedAt     DateTime            @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+  reviewedBy      User?               @relation("ReviewerUpdateRequests", fields: [reviewedById], references: [id])
+
+  @@map("laptop_update_requests")
 }

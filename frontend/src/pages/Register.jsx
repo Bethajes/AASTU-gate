@@ -6,6 +6,7 @@ import AuthPageLayout from '../components/AuthPageLayout'
 
 export default function Register() {
   const [form, setForm] = useState({ name: '', email: '', password: '', studentId: '', role: 'STUDENT' })
+  const [showPreview, setShowPreview] = useState(false)
   // role is always STUDENT for public registration
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -57,6 +58,30 @@ export default function Register() {
             <input className="auth-input" style={styles.input} type="text" placeholder="ETS0001"
               value={form.studentId} onChange={e => setForm({...form, studentId: e.target.value})} />
           </div>
+
+          <button type="button" style={styles.previewToggle} onClick={() => setShowPreview(prev => !prev)}>
+            {showPreview ? 'Hide review' : 'Review details before submit'}
+          </button>
+
+          {showPreview && (
+            <div style={styles.previewCard}>
+              <h2 style={styles.previewTitle}>Review your registration</h2>
+              <div style={styles.previewRow}>
+                <span style={styles.previewLabel}>Full Name</span>
+                <span>{form.name || 'Not entered yet'}</span>
+              </div>
+              <div style={styles.previewRow}>
+                <span style={styles.previewLabel}>Email</span>
+                <span>{form.email || 'Not entered yet'}</span>
+              </div>
+              <div style={styles.previewRow}>
+                <span style={styles.previewLabel}>Student ID</span>
+                <span>{form.studentId || 'Not entered yet'}</span>
+              </div>
+              <div style={styles.previewNote}>Password is hidden for security.</div>
+            </div>
+          )}
+
           <button style={styles.button} type="submit" disabled={loading}>
             {loading ? 'Creating account...' : 'Register'}
           </button>
@@ -137,6 +162,49 @@ const styles = {
     outline: 'none',
     backgroundColor: '#fff',
     cursor: 'pointer',
+  },
+  previewToggle: {
+    width: '100%',
+    padding: '12px 16px',
+    borderRadius: '10px',
+    border: '1px solid #0033A0',
+    backgroundColor: '#eef4ff',
+    color: '#0033A0',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    marginBottom: '16px',
+  },
+  previewCard: {
+    backgroundColor: '#f9fbff',
+    border: '1px solid #dbeafe',
+    borderRadius: '14px',
+    padding: '18px',
+    marginBottom: '16px',
+  },
+  previewTitle: {
+    margin: '0 0 12px',
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  previewRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '10px',
+    fontSize: '14px',
+    color: '#334155',
+  },
+  previewLabel: {
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  previewNote: {
+    marginTop: '10px',
+    fontSize: '13px',
+    color: '#475569',
+    lineHeight: 1.4,
   },
   button: {
     width: '100%',

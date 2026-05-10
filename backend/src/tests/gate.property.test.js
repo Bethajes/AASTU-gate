@@ -19,7 +19,16 @@ import pool from '../lib/db.js'
 async function createUser(role = 'GUARD') {
   const id = crypto.randomUUID()
   const suffix = id.slice(0, 8)
-  const studentId = role === 'STUDENT' ? `ETS${suffix}` : null
+  let studentId = null
+  if (role === 'STUDENT') {
+    studentId = `ETS${suffix}`
+    await pool.query(
+      `INSERT INTO "Student" (id, username, name, email, department, "isActivated")
+       VALUES ($1, $2, $3, $4, $5, false)
+       ON CONFLICT (id) DO NOTHING`,
+      [studentId, `user_${suffix}`, `Test Student ${suffix}`, `${suffix}@test.local`, 'CS']
+    )
+  }
   await pool.query(
     `INSERT INTO "User" (id, name, email, password, role, "studentId")
      VALUES ($1, $2, $3, 'hashed', $4::"Role", $5)`,
@@ -81,10 +90,12 @@ async function countLogs(laptopId, action) {
 // Track created IDs for cleanup
 const createdUsers = []
 const createdLaptops = []
+const createdStudents = []
 
 async function makeUser(role) {
   const u = await createUser(role)
   createdUsers.push(u.id)
+  if (u.studentId) createdStudents.push(u.studentId)
   return u
 }
 
@@ -103,6 +114,10 @@ afterEach(async () => {
   if (createdUsers.length) {
     await pool.query(`DELETE FROM "User" WHERE id = ANY($1)`, [createdUsers])
     createdUsers.length = 0
+  }
+  if (createdStudents.length) {
+    await pool.query(`DELETE FROM "Student" WHERE id = ANY($1)`, [createdStudents])
+    createdStudents.length = 0
   }
 })
 
@@ -157,6 +172,35 @@ describe('Property 11: Lookup by code and lookup by studentId return equivalent 
         if (resByCode.body.id !== resByStudentId.body.id) {
           throw new Error(
             `Lookup by code returned id=${resByCode.body.id} but lookup by studentId returned id=${resByStudentId.body.id}`
+          )
+        }
+      }),
+      { numRuns: 20 }
+    )
+  })
+})
+
+describe('Property 12: Lookup includes preuploaded student photo for laptop owner', () => {
+  it('returns student_photo_url when the laptop owner has a preuploaded student photo', async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.constant(null), async () => {
+        const student = await makeUser('STUDENT')
+        const photoPath = `/uploads/photos/${student.studentId}.jpg`
+        await pool.query(
+          `UPDATE "Student" SET photo = $1 WHERE id = $2`,
+          [photoPath, student.studentId]
+        )
+
+        const laptop = await makeLaptop(student.id)
+        const { req, res } = makeReqRes({}, { code: laptop.qrCode }, {})
+        await lookupLaptop(req, res)
+
+        if (res.statusCode !== 200) {
+          throw new Error(`Expected 200, got ${res.statusCode}: ${JSON.stringify(res.body)}`)
+        }
+        if (res.body.student_photo_url !== photoPath) {
+          throw new Error(
+            `Expected student_photo_url=${photoPath}, got ${res.body.student_photo_url}`
           )
         }
       }),

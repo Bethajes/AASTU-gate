@@ -11,7 +11,7 @@
     - Export `generateOTP()` returning a random 6-digit numeric string
     - Export `generateOTPExpiry()` returning `new Date(Date.now() + 10 * 60 * 1000)`
     - _Requirements: 1.1, 2.1, 2.2_
-  - [ ] 2.2 Write property tests for auth utility functions
+  - [x] 2.2 Write property tests for auth utility functions
     - **Property 1: Institutional email validation rejects non-conforming addresses**
     - **Validates: Requirements 1.1, 1.2**
     - **Property 2: OTP is always a 6-digit numeric string**
