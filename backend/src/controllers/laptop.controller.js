@@ -266,6 +266,135 @@ export const editLaptop = async (req, res) => {
   }
 }
 
+// ─── Admin: get laptops for a specific student ────────────────────────────────
+export const getLaptopsByStudent = async (req, res) => {
+  const { studentId } = req.params
+  try {
+    const result = await pool.query(
+      `SELECT l.*, u."name" as owner_name, u."studentId" as student_id,
+              vb."name" as verified_by_name
+       FROM "Laptop" l
+       JOIN "User" u ON l."ownerId" = u."id"
+       LEFT JOIN "User" vb ON l."verifiedById" = vb."id"
+       WHERE u."studentId" = $1
+       ORDER BY l."registeredAt" DESC`,
+      [studentId]
+    )
+    res.json(result.rows.map(row => ({
+      id: row.id,
+      serial_number: row.serialNumber,
+      brand: row.brand,
+      model: row.model,
+      qr_code: row.qrCode,
+      is_in_campus: row.isInCampus,
+      registered_at: row.registeredAt,
+      owner_id: row.ownerId,
+      owner_name: row.owner_name,
+      student_id: row.student_id,
+      photo_url: row.photoUrl,
+      verification_status: row.verificationStatus,
+      verified_at: row.verifiedAt,
+      verified_by_name: row.verified_by_name,
+    })))
+  } catch (err) {
+    console.error('GET LAPTOPS BY STUDENT ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// ─── Admin: delete a laptop ───────────────────────────────────────────────────
+export const deleteLaptop = async (req, res) => {
+  const { id } = req.params
+  try {
+    const result = await pool.query(
+      `DELETE FROM "Laptop" WHERE "id" = $1 RETURNING "id"`,
+      [id]
+    )
+    if (!result.rows[0]) return res.status(404).json({ message: 'Laptop not found' })
+    res.json({ message: 'Laptop deleted' })
+  } catch (err) {
+    console.error('DELETE LAPTOP ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// ─── Admin: register a laptop on behalf of a student ─────────────────────────
+export const adminRegisterLaptop = async (req, res) => {
+  const { studentId, serialNumber, brand, model } = req.body
+  const photoUrl = req.file ? `/uploads/laptops/${req.file.filename}` : null
+
+  if (!studentId || !serialNumber || !brand || !model) {
+    return res.status(400).json({ message: 'studentId, serialNumber, brand, and model are required' })
+  }
+
+  try {
+    const userRes = await pool.query(
+      `SELECT "id" FROM "User" WHERE "studentId" = $1`,
+      [studentId]
+    )
+    if (!userRes.rows[0]) {
+      return res.status(404).json({ message: 'No user account found for this student. The student must activate their account first.' })
+    }
+    const ownerId = userRes.rows[0].id
+
+    const qrData = Math.floor(10000000 + Math.random() * 90000000).toString()
+    const qrImage = await QRCode.toDataURL(qrData)
+    const id = crypto.randomUUID()
+
+    const result = await pool.query(
+      `INSERT INTO "Laptop" ("id", "serialNumber", "brand", "model", "qrCode", "ownerId", "photoUrl", "verificationStatus")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING') RETURNING *`,
+      [id, serialNumber, brand, model, qrData, ownerId, photoUrl]
+    )
+    const row = result.rows[0]
+    res.status(201).json({
+      message: 'Laptop registered on behalf of student',
+      laptop: {
+        id: row.id,
+        serial_number: row.serialNumber,
+        brand: row.brand,
+        model: row.model,
+        qr_code: row.qrCode,
+        is_in_campus: row.isInCampus,
+        registered_at: row.registeredAt,
+        owner_id: row.ownerId,
+        photo_url: row.photoUrl,
+        verification_status: row.verificationStatus,
+      },
+      qrImage,
+      qrCodeNumber: qrData,
+    })
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return res.status(400).json({ message: 'Serial number already registered' })
+    }
+    console.error('ADMIN REGISTER LAPTOP ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+// ─── Admin: update photo for any laptop ──────────────────────────────────────
+export const adminUpdateLaptopPhoto = async (req, res) => {
+  const { id } = req.params
+  const photoUrl = req.file ? `/uploads/laptops/${req.file.filename}` : null
+
+  if (!photoUrl) {
+    return res.status(400).json({ message: 'No photo uploaded' })
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE "Laptop" SET "photoUrl" = $1 WHERE "id" = $2 RETURNING "id", "photoUrl"`,
+      [photoUrl, id]
+    )
+    if (!result.rows[0]) return res.status(404).json({ message: 'Laptop not found' })
+    res.json({ photo_url: result.rows[0].photoUrl })
+  } catch (err) {
+    console.error('ADMIN UPDATE LAPTOP PHOTO ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
 export const getLaptopByCode = async (req, res) => {
   const { code } = req.params
   try {

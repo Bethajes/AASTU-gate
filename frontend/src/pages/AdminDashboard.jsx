@@ -5,6 +5,7 @@ import API from '../api/axios'
 import StudentsTab from './StudentsTab'
 import BulkUploadModal from './BulkUploadModal'
 import BulkPhotoUploadModal from './BulkPhotoUploadModal'
+import AddStudentModal from './AddStudentModal'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1163,6 +1164,7 @@ export default function AdminDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showUploadModal, setShowUploadModal]   = useState(false)
   const [showPhotoUploadModal, setShowPhotoUploadModal] = useState(false)
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false)
   const [studentsKey, setStudentsKey]     = useState(0)
 
   const { laptops, logs, loading, error, refetch } = useDashboardData()
@@ -1239,6 +1241,9 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div className="card-actions">
+                    <button className="btn btn-outline btn-sm" onClick={() => setShowAddStudentModal(true)}>
+                      ➕ Add Student
+                    </button>
                     <button className="btn btn-outline btn-sm" onClick={() => setShowUploadModal(true)}>
                       📂 Upload Students CSV
                     </button>
@@ -1262,6 +1267,12 @@ export default function AdminDashboard() {
         <Footer />
       </main>
 
+      {showAddStudentModal && (
+        <AddStudentModal
+          onSuccess={() => setStudentsKey(k => k + 1)}
+          onClose={() => setShowAddStudentModal(false)}
+        />
+      )}
       {showUploadModal && (
         <BulkUploadModal
           onSuccess={() => setStudentsKey(k => k + 1)}
