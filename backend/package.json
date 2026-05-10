@@ -5,10 +5,12 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
-    "test": "vitest run"
-  },
+  "dev": "nodemon src/index.js",
+  "start": "node src/index.js",
+  "test": "vitest run",
+  "build": "npx prisma generate",
+  "postinstall": "npx prisma generate"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
