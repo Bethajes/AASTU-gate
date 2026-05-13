@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
-import { register, login, forgotPassword, resetPassword, activateStudent, setPassword, sendOtp, verifyOtp } from '../controllers/auth.controller.js'
+import { register, login, forgotPassword, resetPassword, activateStudent, setPassword, sendOtp, verifyOtp, checkEmail, changePassword } from '../controllers/auth.controller.js'
+import { protect, allowRoles } from '../middleware/auth.middleware.js'
 
 const router = Router()
 
@@ -21,6 +22,8 @@ const sendOtpRateLimiter = rateLimit({
 })
 
 router.post('/register', register)
+router.get('/check-email', checkEmail)
+router.post('/change-password', protect, allowRoles('ADMIN'), changePassword)
 router.post('/login', login)
 router.post('/forgot-password', forgotPassword)
 router.post('/reset-password', resetPassword)

@@ -18,13 +18,13 @@ export default function AuthPageLayout({ children }) {
           to="/login"
           className="auth-brand-link"
           style={styles.brandLink}
-          aria-label="AASTU ICT Campus Security — home"
+          aria-label="AASTU Gate Pass — home"
         >
           <AASTULogo orientation="horizontal" showText={false} tone="onDark" />
         </Link>
         <div style={styles.topBarMeta}>
-          <span style={styles.topBarTitle}>AASTU ICT Campus Security</span>
-          <span style={styles.topBarSub}>Official university access and security platform</span>
+          <span style={styles.topBarTitle}>Laptop Gate Pass</span>
+          <span style={styles.topBarSub}>AASTU campus access</span>
         </div>
         <div style={styles.langSwitcher}>
           <button

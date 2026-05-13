@@ -331,7 +331,7 @@ const styles = {
   card:           { backgroundColor: '#fff', borderRadius: '12px', padding: '28px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' },
   cardHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: 12 },
   cardTitle:      { margin: 0, fontSize: '18px', fontWeight: '600', color: '#1a1a2e' },
-  searchInput:    { padding: '7px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', minWidth: 260 },
+  searchInput:    { padding: '7px 12px', border: '1.5px solid #94a3b8', borderRadius: '8px', fontSize: '13px', outline: 'none', minWidth: 260, background: '#fff', color: '#1e293b', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
   secondaryBtn:   { padding: '8px 16px', backgroundColor: '#fff', color: '#1a1a2e', border: '1px solid #1a1a2e', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap' },
   bulkBar:        { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f4ff', border: '1px solid #c7d7ff', borderRadius: '8px', padding: '10px 16px', marginBottom: 16, gap: 12, flexWrap: 'wrap' },
   clearBtn:       { padding: '6px 12px', backgroundColor: '#fff', color: '#555', border: '1px solid #ddd', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },

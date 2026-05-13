@@ -79,6 +79,14 @@ export const createStudent = async (req, res) => {
   }
 }
 
+export const uploadSinglePhoto = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No image file provided' })
+  }
+  const photoPath = `${PUBLIC_PHOTO_DIR}/${req.file.filename}`
+  return res.status(201).json({ photo: photoPath })
+}
+
 export const listStudents = async (req, res) => {
   try {
     const result = await pool.query(

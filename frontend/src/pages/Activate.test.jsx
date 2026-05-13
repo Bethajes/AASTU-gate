@@ -151,7 +151,7 @@ describe('Activate wizard step flow', () => {
     fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
 
     await waitFor(() => {
-      expect(within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\.edu\.et/i)).toBeInTheDocument()
+      expect(within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i)).toBeInTheDocument()
     })
   })
 
@@ -166,10 +166,10 @@ describe('Activate wizard step flow', () => {
     await waitFor(() => within(container).getByText('Test Student'))
     fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
 
-    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\.edu\.et/i))
+    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i))
 
     fireEvent.change(
-      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\.edu\.et/i),
+      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i),
       { target: { value: 'test.student@aastustudent.edu.et' } }
     )
     fireEvent.click(within(container).getByRole('button', { name: /send verification code/i }))
@@ -192,9 +192,9 @@ describe('Activate wizard step flow', () => {
     await waitFor(() => within(container).getByText('Test Student'))
     fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
 
-    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\.edu\.et/i))
+    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i))
     fireEvent.change(
-      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\.edu\.et/i),
+      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i),
       { target: { value: 'test.student@aastustudent.edu.et' } }
     )
     fireEvent.click(within(container).getByRole('button', { name: /send verification code/i }))
@@ -222,9 +222,9 @@ describe('Activate wizard step flow', () => {
     await waitFor(() => within(container).getByText('Test Student'))
     fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
 
-    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\.edu\.et/i))
+    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i))
     fireEvent.change(
-      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\.edu\.et/i),
+      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i),
       { target: { value: 'test.student@aastustudent.edu.et' } }
     )
     fireEvent.click(within(container).getByRole('button', { name: /send verification code/i }))

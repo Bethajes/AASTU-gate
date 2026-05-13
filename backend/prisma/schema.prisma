@@ -52,6 +52,10 @@ model User {
 
   studentUpdateRequests LaptopUpdateRequest[] @relation("StudentUpdateRequests")
   reviewedRequests      LaptopUpdateRequest[] @relation("ReviewerUpdateRequests")
+
+  transfersFrom LaptopTransferLog[] @relation("TransferFrom")
+  transfersTo   LaptopTransferLog[] @relation("TransferTo")
+  transfersBy   LaptopTransferLog[] @relation("TransferredBy")
 }
 
 model Student {
@@ -67,6 +71,7 @@ model Student {
   // OTP activation state (cleared after successful verification)
   otpCode      String?
   otpExpiry    DateTime?
+  otpSentAt    DateTime?
   pendingEmail String?
 
   user User?
@@ -90,8 +95,10 @@ model Laptop {
   verifiedAt         DateTime?
   verifiedById       String?
   verifiedBy         User?              @relation("LaptopVerifier", fields: [verifiedById], references: [id])
+  blockReason        String?
 
   updateRequests LaptopUpdateRequest[]
+  transferLogs   LaptopTransferLog[]
 }
 
 model GateLog {
@@ -145,4 +152,30 @@ model LaptopUpdateRequest {
   reviewedBy      User?               @relation("ReviewerUpdateRequests", fields: [reviewedById], references: [id])
 
   @@map("laptop_update_requests")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String   // e.g. "LAPTOP_BLOCKED"
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  laptopId  String?
+  guardId   String?
+}
+
+model LaptopTransferLog {
+  id              String   @id @default(uuid())
+  laptopId        String
+  laptop          Laptop   @relation(fields: [laptopId], references: [id], onDelete: Cascade)
+  fromUserId      String
+  fromUser        User     @relation("TransferFrom", fields: [fromUserId], references: [id])
+  toUserId        String
+  toUser          User     @relation("TransferTo", fields: [toUserId], references: [id])
+  transferredById String
+  transferredBy   User     @relation("TransferredBy", fields: [transferredById], references: [id])
+  transferredAt   DateTime @default(now())
+
+  @@map("laptop_transfer_logs")
 }

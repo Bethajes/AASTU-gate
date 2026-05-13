@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import AASTUHeader from '../components/AASTUHeader'
 import AASTUFooter from '../components/AASTUFooter'
 import { buildPhotoUrl } from '../utils/photoUrl'
+import API from '../api/axios'
 import {
   lookupLaptop,
   verifyLaptop,
@@ -245,13 +246,157 @@ function GuestCard({ guest, onRefresh }) {
   )
 }
 
+// ─── Guard Register Laptop Form ───────────────────────────────────────────────
+
+function GuardRegisterLaptopForm() {
+  const [form, setForm] = useState({ studentId: '', serialNumber: '', brand: '', model: '' })
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [apiError, setApiError] = useState('')
+  const [success, setSuccess] = useState(null)
+
+  const validate = () => {
+    const e = {}
+    if (!form.studentId.trim())    e.studentId    = 'Student ID is required'
+    if (!form.serialNumber.trim()) e.serialNumber = 'Serial number is required'
+    if (!form.brand.trim())        e.brand        = 'Brand is required'
+    if (!form.model.trim())        e.model        = 'Model is required'
+    return e
+  }
+
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setForm(prev => ({ ...prev, [name]: value }))
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: undefined }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setApiError('')
+    setSuccess(null)
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    setSubmitting(true)
+    try {
+      const fd = new FormData()
+      fd.append('studentId',    form.studentId.trim())
+      fd.append('serialNumber', form.serialNumber.trim())
+      fd.append('brand',        form.brand.trim())
+      fd.append('model',        form.model.trim())
+      const res = await API.post('/laptops/guard-register', fd)
+      setSuccess(res.data)
+      setForm({ studentId: '', serialNumber: '', brand: '', model: '' })
+    } catch (err) {
+      setApiError(err.response?.data?.message || 'Registration failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const fields = [
+    { name: 'studentId',    label: 'Student ID',    placeholder: 'e.g. ETS0123/14' },
+    { name: 'serialNumber', label: 'Serial Number', placeholder: 'e.g. SN123456' },
+    { name: 'brand',        label: 'Brand',         placeholder: 'e.g. Dell' },
+    { name: 'model',        label: 'Model',         placeholder: 'e.g. XPS 15' },
+  ]
+
+  return (
+    <div>
+      {apiError && <div style={styles.errorBox}>{apiError}</div>}
+      {success && (
+        <div style={styles.successBox}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>✅ Laptop registered successfully!</div>
+          <div style={{ fontSize: 13 }}>
+            {success.laptop.brand} {success.laptop.model} — <span style={{ fontFamily: 'monospace' }}>{success.laptop.serial_number}</span>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 13 }}>
+            QR Code: <span style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: 2 }}>{success.qrCodeNumber}</span>
+          </div>
+        </div>
+      )}
+      <form onSubmit={handleSubmit} noValidate>
+        {fields.map(({ name, label, placeholder }) => (
+          <div key={name} style={styles.field}>
+            <label style={styles.label}>{label} *</label>
+            <input
+              name={name}
+              value={form[name]}
+              onChange={handleChange}
+              placeholder={placeholder}
+              style={{ ...styles.input, ...(errors[name] ? { borderColor: '#c62828' } : {}) }}
+            />
+            {errors[name] && <span style={{ fontSize: 12, color: '#c62828', marginTop: 4, display: 'block' }}>{errors[name]}</span>}
+          </div>
+        ))}
+        <button style={styles.btnPrimary} type="submit" disabled={submitting}>
+          {submitting ? 'Registering…' : '💻 Register Laptop'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// ─── Block Reason Modal ───────────────────────────────────────────────────────
+
+function BlockReasonModal({ laptop, onConfirm, onCancel }) {
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!reason.trim()) { setError('Please provide a reason for blocking.'); return }
+    onConfirm(reason.trim())
+  }
+
+  return (
+    <div style={blockModalStyles.overlay} role="dialog" aria-modal="true">
+      <div style={blockModalStyles.box}>
+        <h3 style={blockModalStyles.title}>🚫 Block Laptop</h3>
+        <p style={blockModalStyles.sub}>
+          {laptop?.brand} {laptop?.model} — <span style={{ fontFamily: 'monospace' }}>{laptop?.serial_number}</span>
+        </p>
+        <form onSubmit={handleSubmit}>
+          <label style={blockModalStyles.label}>Reason for blocking *</label>
+          <textarea
+            style={blockModalStyles.textarea}
+            placeholder="e.g. Suspected stolen device, owner could not verify identity…"
+            value={reason}
+            onChange={e => { setReason(e.target.value); setError('') }}
+            rows={3}
+            autoFocus
+          />
+          {error && <p style={blockModalStyles.error}>{error}</p>}
+          <div style={blockModalStyles.actions}>
+            <button type="button" style={blockModalStyles.cancelBtn} onClick={onCancel}>Cancel</button>
+            <button type="submit" style={blockModalStyles.confirmBtn}>Confirm Block</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const blockModalStyles = {
+  overlay:    { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500 },
+  box:        { backgroundColor: '#fff', borderRadius: 16, padding: '28px 32px', maxWidth: 440, width: '90%', boxShadow: '0 12px 40px rgba(0,0,0,0.2)' },
+  title:      { margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: '#c62828' },
+  sub:        { margin: '0 0 20px', fontSize: 13, color: '#555' },
+  label:      { display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: '#333' },
+  textarea:   { width: '100%', padding: '10px 14px', borderRadius: 10, border: '2px solid #e0e0e0', fontSize: 14, outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' },
+  error:      { margin: '6px 0 0', fontSize: 12, color: '#c62828' },
+  actions:    { display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' },
+  cancelBtn:  { padding: '9px 20px', borderRadius: 8, border: '1.5px solid #ddd', background: '#fff', color: '#555', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  confirmBtn: { padding: '9px 20px', borderRadius: 8, border: 'none', background: '#c62828', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function GuardDashboard() {
-  const [activeTab, setActiveTab] = useState('scan') // 'scan' | 'register'
+  const [activeTab, setActiveTab] = useState('scan')
   const [query, setQuery] = useState('')
   const [searchType, setSearchType] = useState('code')
-  const [record, setRecord] = useState(null)   // { type: 'laptop'|'guest', ...fields }
+  const [record, setRecord] = useState(null)
+  const [guestList, setGuestList] = useState([])
   const [lookupError, setLookupError] = useState('')
   const [searching, setSearching] = useState(false)
   const [actionMsg, setActionMsg] = useState('')
@@ -259,6 +404,7 @@ export default function GuardDashboard() {
   const [actionLoading, setActionLoading] = useState(null)
   const [logs, setLogs] = useState([])
   const [showScanner, setShowScanner] = useState(false)
+  const [blockReasonModal, setBlockReasonModal] = useState(false)
 
   useEffect(() => { loadLogs() }, [])
 
@@ -276,12 +422,26 @@ export default function GuardDashboard() {
     setSearching(true)
     setLookupError('')
     setRecord(null)
+    setGuestList([])
     setActionMsg('')
     setActionError('')
     try {
-      const param = searchType === 'code' ? { code: trimmed } : { studentId: trimmed }
+      let param
+      if (searchType === 'code') param = { code: trimmed }
+      else if (searchType === 'studentId') param = { studentId: trimmed }
+      else param = { guestName: trimmed }
+
       const res = await lookupLaptop(param)
-      setRecord(res.data)
+
+      if (res.data.type === 'guestList') {
+        if (res.data.results.length === 0) {
+          setLookupError('No guests found with that name')
+        } else {
+          setGuestList(res.data.results)
+        }
+      } else {
+        setRecord(res.data)
+      }
     } catch (err) {
       setLookupError(err.response?.data?.message || 'No record found')
     } finally {
@@ -302,14 +462,13 @@ export default function GuardDashboard() {
       .finally(() => setSearching(false))
   }
 
-  const doLaptopAction = async (type, apiFn) => {
+  const doLaptopAction = async (type, apiFn, reason) => {
     if (!record) return
     setActionLoading(type)
     setActionMsg('')
     setActionError('')
     try {
-      await apiFn(record.id)
-      // Refresh laptop card
+      await apiFn(record.id, reason)
       const param = record.qr_code ? { code: record.qr_code } : { studentId: record.student_id }
       const res = await lookupLaptop(param)
       setRecord(res.data)
@@ -357,6 +516,12 @@ export default function GuardDashboard() {
             >
               👤 Register Guest
             </button>
+            <button
+              style={{ ...styles.tab, ...(activeTab === 'registerLaptop' ? styles.tabActive : {}) }}
+              onClick={() => setActiveTab('registerLaptop')}
+            >
+              💻 Register Laptop
+            </button>
           </div>
 
           {/* ── Scan tab ── */}
@@ -367,21 +532,36 @@ export default function GuardDashboard() {
 
                 <form onSubmit={handleSearch} style={styles.searchForm}>
                   <div style={styles.searchTypeRow}>
-                    <label style={styles.radioLabel}>
-                      <input type="radio" value="code" checked={searchType === 'code'}
-                        onChange={() => setSearchType('code')} />
-                      8-Digit Code
-                    </label>
-                    <label style={styles.radioLabel}>
-                      <input type="radio" value="studentId" checked={searchType === 'studentId'}
-                        onChange={() => setSearchType('studentId')} />
-                      Student ID
-                    </label>
+                    {[
+                      { id: 'code',      label: '8-Digit Code' },
+                      { id: 'studentId', label: 'Student ID' },
+                      { id: 'guestName', label: '👤 Guest Name' },
+                    ].map(({ id, label }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => { setSearchType(id); setGuestList([]); setRecord(null); setLookupError('') }}
+                        style={{
+                          padding: '7px 18px', borderRadius: '20px', fontSize: '13px', fontWeight: '600',
+                          cursor: 'pointer', border: '2px solid',
+                          borderColor: searchType === id ? '#0033A0' : '#c7d2e8',
+                          backgroundColor: searchType === id ? '#0033A0' : '#fff',
+                          color: searchType === id ? '#fff' : '#64748b',
+                          transition: 'all 0.18s',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                   <div style={styles.searchRow}>
                     <input
                       style={styles.searchInput}
-                      placeholder={searchType === 'code' ? 'e.g. 48271935' : 'e.g. ETS0123/14'}
+                      placeholder={
+                        searchType === 'code' ? 'e.g. 48271935'
+                        : searchType === 'studentId' ? 'e.g. ETS0123/14'
+                        : 'e.g. John Doe'
+                      }
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       autoFocus
@@ -389,10 +569,12 @@ export default function GuardDashboard() {
                     <button style={styles.btnPrimary} type="submit" disabled={searching}>
                       {searching ? 'Searching…' : 'Search'}
                     </button>
-                    <button type="button" style={styles.btnQR}
-                      onClick={() => setShowScanner((v) => !v)}>
-                      📷 Scan QR
-                    </button>
+                    {searchType !== 'guestName' && (
+                      <button type="button" style={styles.btnQR}
+                        onClick={() => setShowScanner((v) => !v)}>
+                        📷 Scan QR
+                      </button>
+                    )}
                   </div>
                 </form>
 
@@ -401,6 +583,44 @@ export default function GuardDashboard() {
                 )}
 
                 {lookupError && <div style={styles.errorBox}>{lookupError}</div>}
+
+                {guestList.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <p style={{ fontSize: 13, color: '#64748b', marginBottom: 10 }}>
+                      {guestList.length} guest{guestList.length !== 1 ? 's' : ''} found — select one to view details
+                    </p>
+                    {guestList.map(g => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => { setRecord({ ...g, type: 'guest' }); setGuestList([]) }}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          width: '100%', padding: '12px 16px', marginBottom: 8,
+                          background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                          borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                          transition: 'border-color 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#0033A0'; e.currentTarget.style.background = '#eff6ff' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f8fafc' }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a2e' }}>{g.guest_name}</div>
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                            {g.device_brand} · Code: <span style={{ fontFamily: 'monospace' }}>{g.guest_code}</span>
+                          </div>
+                        </div>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+                          background: g.is_in_campus ? '#d1fae5' : '#fee2e2',
+                          color: g.is_in_campus ? '#065f46' : '#991b1b',
+                        }}>
+                          {g.is_in_campus ? 'On Campus' : 'Off Campus'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* ── Guest record card ── */}
@@ -438,8 +658,9 @@ export default function GuardDashboard() {
                       </div>
                     </div>
                     <div style={styles.details}>
-                      <Row label="Owner"         value={record.owner_name} />
+                      <Row label="Owner"         value={record.student_full_name || record.owner_name} />
                       <Row label="Student ID"    value={record.student_id || 'N/A'} />
+                      <Row label="Email"         value={record.owner_email || 'N/A'} />
                       <Row label="Brand"         value={record.brand} />
                       <Row label="Model"         value={record.model} />
                       <Row label="Serial Number" value={record.serial_number} />
@@ -481,7 +702,7 @@ export default function GuardDashboard() {
                     )}
                     {(status === 'PENDING' || status === 'VERIFIED') && (
                       <button style={{ ...styles.btnAction, ...styles.btnBlock }}
-                        onClick={() => doLaptopAction('block', blockLaptop)} disabled={!!actionLoading}>
+                        onClick={() => setBlockReasonModal(true)} disabled={!!actionLoading}>
                         {actionLoading === 'block' ? 'Blocking…' : '🚫 Block Laptop'}
                       </button>
                     )}
@@ -496,6 +717,14 @@ export default function GuardDashboard() {
             <div style={styles.card}>
               <h2 style={styles.cardTitle}>Register Guest</h2>
               <GuestRegistrationForm onSuccess={loadLogs} />
+            </div>
+          )}
+
+          {/* ── Register Laptop tab ── */}
+          {activeTab === 'registerLaptop' && (
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>Register Laptop for Student</h2>
+              <GuardRegisterLaptopForm />
             </div>
           )}
 

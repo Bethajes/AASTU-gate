@@ -15,6 +15,69 @@ async function findUserByEmail(email) {
   return r.rows[0] || null
 }
 
+export const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body
+  const userId = req.user.id
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Current password and new password are required' })
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'New password must be at least 6 characters' })
+  }
+
+  try {
+    const result = await pool.query(`SELECT "id", "password" FROM "User" WHERE "id" = $1`, [userId])
+    const user = result.rows[0]
+    if (!user) return res.status(404).json({ message: 'User not found' })
+
+    const valid = await bcrypt.compare(currentPassword, user.password)
+    if (!valid) return res.status(401).json({ message: 'Current password is incorrect' })
+
+    const hashed = await bcrypt.hash(newPassword, 10)
+    await pool.query(`UPDATE "User" SET "password" = $1 WHERE "id" = $2`, [hashed, userId])
+
+    return res.json({ message: 'Password changed successfully' })
+  } catch (err) {
+    console.error('CHANGE PASSWORD ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+export const checkEmail = async (req, res) => {
+  const { email } = req.query
+  if (!email || String(email).trim() === '') {
+    return res.status(400).json({ message: 'Email is required' })
+  }
+
+  if (!isInstitutionalEmail(email)) {
+    return res.json({ available: false, reason: 'not_institutional' })
+  }
+
+  try {
+    const userCheck = await pool.query(
+      `SELECT "id" FROM "User" WHERE "email" = $1`,
+      [email]
+    )
+    if (userCheck.rows.length > 0) {
+      return res.json({ available: false, reason: 'taken' })
+    }
+
+    const studentCheck = await pool.query(
+      `SELECT "id" FROM "Student" WHERE "email" = $1 AND "isActivated" = true`,
+      [email]
+    )
+    if (studentCheck.rows.length > 0) {
+      return res.json({ available: false, reason: 'taken' })
+    }
+
+    return res.json({ available: true })
+  } catch (err) {
+    console.error('CHECK EMAIL ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
 export const register = async (req, res) => {
   return res.status(410).json({ message: 'Manual student registration is no longer available. Please use the activation flow.' })
 }
@@ -189,7 +252,7 @@ export const sendOtp = async (req, res) => {
     }
 
     const studentResult = await pool.query(
-      `SELECT "id", "isActivated" FROM "Student" WHERE "id" = $1`,
+      `SELECT "id", "isActivated", "otpSentAt" FROM "Student" WHERE "id" = $1`,
       [student_id]
     )
     const student = studentResult.rows[0]
@@ -198,6 +261,19 @@ export const sendOtp = async (req, res) => {
     }
     if (student.isActivated) {
       return res.status(409).json({ message: 'Account already activated' })
+    }
+
+    // Enforce 60-second cooldown between OTP sends
+    const COOLDOWN_SECONDS = 60
+    if (student.otpSentAt) {
+      const secondsSinceLast = (Date.now() - new Date(student.otpSentAt).getTime()) / 1000
+      if (secondsSinceLast < COOLDOWN_SECONDS) {
+        const waitSeconds = Math.ceil(COOLDOWN_SECONDS - secondsSinceLast)
+        return res.status(429).json({
+          message: `Please wait ${waitSeconds} second${waitSeconds !== 1 ? 's' : ''} before requesting another code`,
+          retryAfter: waitSeconds,
+        })
+      }
     }
 
     if (!isInstitutionalEmail(email)) {
@@ -226,7 +302,7 @@ export const sendOtp = async (req, res) => {
     const expiry = generateOTPExpiry(5)
 
     await pool.query(
-      `UPDATE "Student" SET "otpCode" = $1, "otpExpiry" = $2, "pendingEmail" = $3 WHERE "id" = $4`,
+      `UPDATE "Student" SET "otpCode" = $1, "otpExpiry" = $2, "pendingEmail" = $3, "otpSentAt" = NOW() WHERE "id" = $4`,
       [code, expiry, email, student_id]
     )
 

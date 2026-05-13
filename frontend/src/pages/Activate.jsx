@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import API from '../api/axios'
@@ -6,12 +6,52 @@ import AASTULogo from '../components/AASTULogo'
 import AuthPageLayout from '../components/AuthPageLayout'
 import { buildPhotoUrl } from '../utils/photoUrl'
 
+const INSTITUTIONAL_EMAIL_RE = /^[a-zA-Z]+\.[a-zA-Z]+@aastustudents?\.edu\.et$/
+
 // Step 1: Enter student ID + institutional email, sends OTP
 function StepIdAndEmail({ onSuccess }) {
   const [studentId, setStudentId] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Email availability state: null | 'checking' | 'available' | 'taken' | 'not_institutional'
+  const [emailStatus, setEmailStatus] = useState(null)
+  const debounceRef = useRef(null)
+
+  const handleEmailChange = (e) => {
+    const val = e.target.value
+    setEmail(val)
+    setEmailStatus(null)
+
+    clearTimeout(debounceRef.current)
+
+    if (!val || !INSTITUTIONAL_EMAIL_RE.test(val)) {
+      if (val && !INSTITUTIONAL_EMAIL_RE.test(val)) setEmailStatus('not_institutional')
+      return
+    }
+
+    setEmailStatus('checking')
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await API.get('/auth/check-email', { params: { email: val } })
+        setEmailStatus(res.data.available ? 'available' : (res.data.reason || 'taken'))
+      } catch {
+        setEmailStatus(null)
+      }
+    }, 600)
+  }
+
+  const emailHint = () => {
+    if (emailStatus === 'checking') return { text: 'Checking availability…', color: '#888' }
+    if (emailStatus === 'available') return { text: '✓ Email is available', color: '#276749' }
+    if (emailStatus === 'taken') return { text: '✗ Email is already in use', color: '#e53e3e' }
+    if (emailStatus === 'not_institutional') return { text: 'Must be an @aastustudent.edu.et or @aastustudents.edu.et address', color: '#e53e3e' }
+    return null
+  }
+
+  const hint = emailHint()
+  const submitBlocked = loading || emailStatus === 'taken' || emailStatus === 'not_institutional' || emailStatus === 'checking'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -51,15 +91,25 @@ function StepIdAndEmail({ onSuccess }) {
           <label style={styles.label}>Institutional Email</label>
           <input
             className="auth-input"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: emailStatus === 'available' ? '#38a169'
+                : (emailStatus === 'taken' || emailStatus === 'not_institutional') ? '#e53e3e'
+                : undefined,
+            }}
             type="email"
             value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="firstname.fathername@aastustudent.edu.et"
+            onChange={handleEmailChange}
+            placeholder="firstname.fathername@aastustudent(s).edu.et"
             required
           />
+          {hint && (
+            <p style={{ margin: '6px 0 0', fontSize: '13px', color: hint.color }}>
+              {hint.text}
+            </p>
+          )}
         </div>
-        <button style={styles.button} type="submit" disabled={loading}>
+        <button style={{ ...styles.button, opacity: submitBlocked ? 0.6 : 1 }} type="submit" disabled={submitBlocked}>
           {loading ? 'Sending code...' : 'Send Verification Code'}
         </button>
       </form>
@@ -78,6 +128,29 @@ function StepOtpInput({ studentId, email, onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState('')
+  const [cooldown, setCooldown] = useState(0) // seconds remaining
+  const cooldownRef = useRef(null)
+
+  // Start countdown timer
+  const startCooldown = (seconds) => {
+    setCooldown(seconds)
+    clearInterval(cooldownRef.current)
+    cooldownRef.current = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  // Kick off a 60s cooldown when the component mounts (OTP was just sent)
+  useEffect(() => {
+    startCooldown(60)
+    return () => clearInterval(cooldownRef.current)
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -100,7 +173,12 @@ function StepOtpInput({ studentId, email, onSuccess }) {
     try {
       await API.post('/auth/send-otp', { student_id: studentId, email })
       setResendMsg('A new code has been sent to your email.')
+      startCooldown(60)
     } catch (err) {
+      const retryAfter = err.response?.data?.retryAfter
+      if (retryAfter) {
+        startCooldown(retryAfter)
+      }
       setError(err.response?.data?.message || 'Failed to resend code')
     } finally {
       setResending(false)
@@ -140,10 +218,10 @@ function StepOtpInput({ studentId, email, onSuccess }) {
       <button
         style={styles.resendButton}
         onClick={handleResend}
-        disabled={resending}
+        disabled={resending || cooldown > 0}
         type="button"
       >
-        {resending ? 'Resending...' : 'Resend Code'}
+        {resending ? 'Resending…' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
       </button>
     </>
   )

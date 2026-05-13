@@ -8,6 +8,7 @@ export const lookupLaptop = (query) => {
   const params = new URLSearchParams()
   if (query.code) params.append('code', query.code)
   if (query.studentId) params.append('studentId', query.studentId)
+  if (query.guestName) params.append('guestName', query.guestName)
   return API.get(`/gate/lookup?${params.toString()}`)
 }
 
@@ -20,11 +21,17 @@ export const logEntry = (id) => API.post(`/gate/entry/${id}`)
 /** Log an EXIT event for a VERIFIED laptop. */
 export const logExit = (id) => API.post(`/gate/exit/${id}`)
 
-/** Block a laptop (sets status → BLOCKED). */
-export const blockLaptop = (id) => API.post(`/gate/block/${id}`)
+/** Block a laptop (sets status → BLOCKED). Optionally include a reason. */
+export const blockLaptop = (id, reason) => API.post(`/gate/block/${id}`, { reason: reason || '' })
 
 /** Fetch all gate log records ordered by timestamp descending. */
 export const fetchLogs = () => API.get('/gate/logs')
+
+/** Fetch admin notifications. */
+export const fetchNotifications = () => API.get('/gate/notifications')
+
+/** Mark all notifications as read. */
+export const markNotificationsRead = () => API.post('/gate/notifications/mark-read')
 
 // ── Guest API ────────────────────────────────────────────────────────────────
 

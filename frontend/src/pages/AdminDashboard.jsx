@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import API from '../api/axios'
@@ -608,9 +608,22 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }) {
   )
 }
 
-function Topbar({ user, onLogout, activeTab, collapsed }) {
+function Topbar({ user, onLogout, activeTab, collapsed, onChangePassword }) {
   const tabLabels = { overview: 'Overview', students: 'Students', laptops: 'Laptops', logs: 'Gate Logs', analytics: 'Analytics' }
-  const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || 'AD'
+  const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'AD'
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   return (
     <header className={`aastu-topbar${collapsed ? ' sidebar-collapsed' : ''}`}>
@@ -628,19 +641,177 @@ function Topbar({ user, onLogout, activeTab, collapsed }) {
         </button>
         <button className="topbar-btn" title="Help" style={{ fontSize: 16 }}>?</button>
 
-        <div className="topbar-profile">
-          <div className="topbar-avatar">{initials}</div>
-          <div className="topbar-profile-info">
-            <div className="topbar-profile-name">{user?.name || 'Admin'}</div>
-            <div className="topbar-profile-role">System Admin</div>
-          </div>
-        </div>
+        {/* Profile dropdown */}
+        <div ref={dropdownRef} style={{ position: 'relative' }}>
+          <button
+            className="topbar-profile"
+            onClick={() => setDropdownOpen(o => !o)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="topbar-avatar">{initials}</div>
+            <div className="topbar-profile-info">
+              <div className="topbar-profile-name">{user?.name || 'Admin'}</div>
+              <div className="topbar-profile-role">System Admin</div>
+            </div>
+            <span style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }}>▼</span>
+          </button>
 
-        <button className="logout-btn" onClick={onLogout}>
-          <span style={{ fontSize: 14 }}>⏻</span> Sign Out
-        </button>
+          {dropdownOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              background: '#fff', border: '1px solid #e2e8f0',
+              borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+              minWidth: 200, zIndex: 200, overflow: 'hidden',
+            }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{user?.name || 'Admin'}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{user?.email || 'System Administrator'}</div>
+              </div>
+              <button
+                onClick={() => { setDropdownOpen(false); onChangePassword() }}
+                style={{
+                  width: '100%', padding: '11px 16px', background: 'none', border: 'none',
+                  textAlign: 'left', cursor: 'pointer', fontSize: 13, color: '#334155',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <span style={{ fontSize: 15 }}>🔑</span> Change Password
+              </button>
+              <div style={{ height: 1, background: '#f1f5f9' }} />
+              <button
+                onClick={() => { setDropdownOpen(false); onLogout() }}
+                style={{
+                  width: '100%', padding: '11px 16px', background: 'none', border: 'none',
+                  textAlign: 'left', cursor: 'pointer', fontSize: 13, color: '#ef4444',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#fff5f5'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <span style={{ fontSize: 15 }}>⏻</span> Sign Out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
+  )
+}
+
+function ChangePasswordModal({ onClose }) {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match')
+      return
+    }
+    if (newPassword.length < 6) {
+      setError('New password must be at least 6 characters')
+      return
+    }
+    setLoading(true)
+    try {
+      await API.post('/auth/change-password', { currentPassword, newPassword })
+      setSuccess('Password changed successfully')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to change password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 16, padding: '32px 28px',
+        width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
+        position: 'relative',
+      }}>
+        <button onClick={onClose} style={{
+          position: 'absolute', top: 16, right: 16,
+          background: 'none', border: 'none', fontSize: 20,
+          cursor: 'pointer', color: '#94a3b8', lineHeight: 1,
+        }}>✕</button>
+
+        <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: '#0f172a' }}>Change Password</h2>
+        <p style={{ margin: '0 0 24px', fontSize: 13, color: '#64748b' }}>Update your admin account password</p>
+
+        {error && (
+          <div style={{ background: '#fff0f0', color: '#e53e3e', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13, border: '1px solid #ffcdd2' }}>
+            {error}
+          </div>
+        )}
+        {success && (
+          <div style={{ background: '#f0fff4', color: '#276749', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13, border: '1px solid #c6f6d5' }}>
+            {success}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          {[
+            { label: 'Current Password', value: currentPassword, setter: setCurrentPassword },
+            { label: 'New Password', value: newPassword, setter: setNewPassword },
+            { label: 'Confirm New Password', value: confirmPassword, setter: setConfirmPassword },
+          ].map(({ label, value, setter }) => (
+            <div key={label} style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: '#334155' }}>{label}</label>
+              <input
+                type="password"
+                value={value}
+                onChange={e => setter(e.target.value)}
+                required
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 8,
+                  border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none',
+                  boxSizing: 'border-box', fontFamily: 'inherit',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <button type="button" onClick={onClose} style={{
+              flex: 1, padding: '10px', borderRadius: 8, border: '1.5px solid #e2e8f0',
+              background: 'transparent', color: '#64748b', fontSize: 14, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} style={{
+              flex: 1, padding: '10px', borderRadius: 8, border: 'none',
+              background: loading ? '#93c5fd' : '#2563eb', color: '#fff',
+              fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+            }}>
+              {loading ? 'Saving…' : 'Save Password'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
 
@@ -834,22 +1005,108 @@ function OverviewTab({ chartData }) {
 
 // ─── Laptops Tab ──────────────────────────────────────────────────────────────
 
+// ─── Time Range Filter ────────────────────────────────────────────────────────
+
+const TIME_PRESETS = [
+  { id: 'ALL',   label: 'All Time' },
+  { id: 'TODAY', label: 'Today' },
+  { id: '7D',    label: 'Last 7 Days' },
+  { id: '30D',   label: 'Last 30 Days' },
+  { id: 'CUSTOM', label: 'Custom Range' },
+]
+
+function getPresetRange(preset) {
+  const now = new Date()
+  if (preset === 'TODAY') {
+    const start = new Date(now); start.setHours(0, 0, 0, 0)
+    return { start, end: now }
+  }
+  if (preset === '7D') return { start: new Date(now - 7 * 86400000), end: now }
+  if (preset === '30D') return { start: new Date(now - 30 * 86400000), end: now }
+  return null
+}
+
+function TimeRangeFilter({ preset, onPreset, dateFrom, dateTo, onDateFrom, onDateTo }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      {TIME_PRESETS.map(p => (
+        <button
+          key={p.id}
+          className={`filter-chip${preset === p.id ? ' active' : ''}`}
+          onClick={() => onPreset(p.id)}
+        >
+          {p.label}
+        </button>
+      ))}
+      {preset === 'CUSTOM' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => onDateFrom(e.target.value)}
+            style={dateInputStyle}
+          />
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>→</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => onDateTo(e.target.value)}
+            style={dateInputStyle}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const dateInputStyle = {
+  padding: '5px 10px', borderRadius: 6, border: '1.5px solid #e2e8f0',
+  fontSize: 12, color: '#334155', fontFamily: 'inherit', outline: 'none',
+  cursor: 'pointer',
+}
+
+function applyTimeFilter(items, dateField, preset, dateFrom, dateTo) {
+  if (preset === 'ALL') return items
+  if (preset === 'CUSTOM') {
+    const start = dateFrom ? new Date(dateFrom + 'T00:00:00') : null
+    const end   = dateTo   ? new Date(dateTo   + 'T23:59:59') : null
+    return items.filter(item => {
+      const d = new Date(item[dateField])
+      if (start && d < start) return false
+      if (end   && d > end)   return false
+      return true
+    })
+  }
+  const range = getPresetRange(preset)
+  if (!range) return items
+  return items.filter(item => {
+    const d = new Date(item[dateField])
+    return d >= range.start && d <= range.end
+  })
+}
+
 function LaptopsTab({ laptops, onExport }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [timePreset, setTimePreset] = useState('ALL')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return laptops.filter(l => {
+    const timeFiltered = applyTimeFilter(laptops, 'registered_at', timePreset, dateFrom, dateTo)
+    return timeFiltered.filter(l => {
       const matchStatus = statusFilter === 'ALL' || (statusFilter === 'ON' ? l.is_in_campus : !l.is_in_campus)
       const matchSearch = !q || l.owner_name?.toLowerCase().includes(q) || l.brand?.toLowerCase().includes(q) || l.serial_number?.toLowerCase().includes(q) || l.student_id?.toLowerCase().includes(q)
       return matchStatus && matchSearch
     })
-  }, [laptops, search, statusFilter])
+  }, [laptops, search, statusFilter, timePreset, dateFrom, dateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const resetPage = () => setPage(1)
 
   return (
     <div className="content-card fade-up">
@@ -858,25 +1115,35 @@ function LaptopsTab({ laptops, onExport }) {
           <div className="card-icon">💻</div>
           <div>
             <div className="card-title">Registered Laptops</div>
-            <div className="card-subtitle">{laptops.length} total devices across all students</div>
+            <div className="card-subtitle">{filtered.length} of {laptops.length} devices shown</div>
           </div>
         </div>
         <div className="card-actions">
-          <div className="filter-bar">
-            <div className="search-input-wrap">
-              <span className="search-icon">🔍</span>
-              <input className="search-input" placeholder="Search owner, brand, serial…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1) }} />
-            </div>
-            {['ALL', 'ON', 'OFF'].map(v => (
-              <button key={v} className={`filter-chip${statusFilter === v ? ' active' : ''}`}
-                onClick={() => { setStatusFilter(v); setPage(1) }}>
-                {v === 'ALL' ? 'All' : v === 'ON' ? '🟢 On Campus' : '🔴 Off Campus'}
-              </button>
-            ))}
-          </div>
           <button className="btn btn-outline btn-sm" onClick={onExport}>⬇ Export CSV</button>
         </div>
+      </div>
+
+      {/* Filters row */}
+      <div style={{ padding: '12px 22px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="filter-bar">
+          <div className="search-input-wrap">
+            <span className="search-icon">🔍</span>
+            <input className="search-input" placeholder="Search owner, brand, serial…" value={search}
+              onChange={e => { setSearch(e.target.value); resetPage() }} />
+          </div>
+          {['ALL', 'ON', 'OFF'].map(v => (
+            <button key={v} className={`filter-chip${statusFilter === v ? ' active' : ''}`}
+              onClick={() => { setStatusFilter(v); resetPage() }}>
+              {v === 'ALL' ? 'All Status' : v === 'ON' ? '🟢 On Campus' : '🔴 Off Campus'}
+            </button>
+          ))}
+        </div>
+        <TimeRangeFilter
+          preset={timePreset} onPreset={v => { setTimePreset(v); resetPage() }}
+          dateFrom={dateFrom} dateTo={dateTo}
+          onDateFrom={v => { setDateFrom(v); resetPage() }}
+          onDateTo={v => { setDateTo(v); resetPage() }}
+        />
       </div>
 
       {filtered.length === 0 ? (
@@ -934,19 +1201,25 @@ function LaptopsTab({ laptops, onExport }) {
 function LogsTab({ logs }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('ALL')
-  const [page, setPage]     = useState(1)
+  const [timePreset, setTimePreset] = useState('ALL')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return logs.filter(l => {
+    const timeFiltered = applyTimeFilter(logs, 'scanned_at', timePreset, dateFrom, dateTo)
+    return timeFiltered.filter(l => {
       const matchType   = filter === 'ALL' || l.scan_type === filter
       const matchSearch = !q || l.brand?.toLowerCase().includes(q) || l.serial_number?.toLowerCase().includes(q) || l.scanned_by_name?.toLowerCase().includes(q)
       return matchType && matchSearch
     })
-  }, [logs, search, filter])
+  }, [logs, search, filter, timePreset, dateFrom, dateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const resetPage = () => setPage(1)
 
   return (
     <div className="content-card fade-up">
@@ -955,24 +1228,32 @@ function LogsTab({ logs }) {
           <div className="card-icon">📋</div>
           <div>
             <div className="card-title">Gate Scan History</div>
-            <div className="card-subtitle">{logs.length} total scan events recorded</div>
+            <div className="card-subtitle">{filtered.length} of {logs.length} scan events shown</div>
           </div>
         </div>
-        <div className="card-actions">
-          <div className="filter-bar">
-            <div className="search-input-wrap">
-              <span className="search-icon">🔍</span>
-              <input className="search-input" placeholder="Search brand, serial, guard…" value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1) }} />
-            </div>
-            {['ALL', 'IN', 'OUT'].map(v => (
-              <button key={v} className={`filter-chip${filter === v ? ' active' : ''}`}
-                onClick={() => { setFilter(v); setPage(1) }}>
-                {v === 'ALL' ? 'All Events' : v === 'IN' ? '🔵 Entry' : '🟡 Exit'}
-              </button>
-            ))}
+      </div>
+
+      {/* Filters row */}
+      <div style={{ padding: '12px 22px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="filter-bar">
+          <div className="search-input-wrap">
+            <span className="search-icon">🔍</span>
+            <input className="search-input" placeholder="Search brand, serial, guard…" value={search}
+              onChange={e => { setSearch(e.target.value); resetPage() }} />
           </div>
+          {['ALL', 'IN', 'OUT'].map(v => (
+            <button key={v} className={`filter-chip${filter === v ? ' active' : ''}`}
+              onClick={() => { setFilter(v); resetPage() }}>
+              {v === 'ALL' ? 'All Events' : v === 'IN' ? '🔵 Entry' : '🟡 Exit'}
+            </button>
+          ))}
         </div>
+        <TimeRangeFilter
+          preset={timePreset} onPreset={v => { setTimePreset(v); resetPage() }}
+          dateFrom={dateFrom} dateTo={dateTo}
+          onDateFrom={v => { setDateFrom(v); resetPage() }}
+          onDateTo={v => { setDateTo(v); resetPage() }}
+        />
       </div>
 
       {filtered.length === 0 ? (
@@ -1165,6 +1446,7 @@ export default function AdminDashboard() {
   const [showUploadModal, setShowUploadModal]   = useState(false)
   const [showPhotoUploadModal, setShowPhotoUploadModal] = useState(false)
   const [showAddStudentModal, setShowAddStudentModal] = useState(false)
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
   const [studentsKey, setStudentsKey]     = useState(0)
 
   const { laptops, logs, loading, error, refetch } = useDashboardData()
@@ -1203,6 +1485,7 @@ export default function AdminDashboard() {
         onLogout={handleLogout}
         activeTab={activeTab}
         collapsed={sidebarCollapsed}
+        onChangePassword={() => setShowChangePasswordModal(true)}
       />
 
       <main className={`aastu-main${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
@@ -1244,12 +1527,6 @@ export default function AdminDashboard() {
                     <button className="btn btn-outline btn-sm" onClick={() => setShowAddStudentModal(true)}>
                       ➕ Add Student
                     </button>
-                    <button className="btn btn-outline btn-sm" onClick={() => setShowUploadModal(true)}>
-                      📂 Upload Students CSV
-                    </button>
-                    <button className="btn btn-primary btn-sm" onClick={() => setShowPhotoUploadModal(true)}>
-                      🖼 Upload Photo ZIP
-                    </button>
                   </div>
                 </div>
                 <div style={{ padding: '0 0 4px' }}>
@@ -1267,6 +1544,9 @@ export default function AdminDashboard() {
         <Footer />
       </main>
 
+      {showChangePasswordModal && (
+        <ChangePasswordModal onClose={() => setShowChangePasswordModal(false)} />
+      )}
       {showAddStudentModal && (
         <AddStudentModal
           onSuccess={() => setStudentsKey(k => k + 1)}

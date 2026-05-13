@@ -81,13 +81,33 @@ export const getLogs = async (req, res) => {
  * Extended to also search GuestPass table (guest-registration req 2.1)
  */
 export const lookupLaptop = async (req, res) => {
-  const { code, studentId } = req.query
+  const { code, studentId, guestName } = req.query
 
-  if (!code && !studentId) {
-    return res.status(400).json({ message: 'Provide code or studentId query parameter' })
+  if (!code && !studentId && !guestName) {
+    return res.status(400).json({ message: 'Provide code, studentId, or guestName query parameter' })
   }
 
   try {
+    // Guest name search — returns a list of matches
+    if (guestName) {
+      const guestResult = await pool.query(
+        `SELECT gp.id, gp."guestName" as guest_name, gp.phone, gp.purpose,
+                gp."deviceBrand" as device_brand, gp."deviceModel" as device_model,
+                gp."serialNumber" as serial_number, gp."guestCode" as guest_code,
+                gp."isInCampus" as is_in_campus,
+                gp."verificationStatus" as verification_status,
+                gp."registeredAt" as registered_at,
+                u.name as registered_by_name
+         FROM "GuestPass" gp
+         JOIN "User" u ON gp."registeredById" = u.id
+         WHERE LOWER(gp."guestName") LIKE LOWER($1)
+         ORDER BY gp."registeredAt" DESC
+         LIMIT 20`,
+        [`%${guestName.trim()}%`]
+      )
+      return res.json({ type: 'guestList', results: guestResult.rows })
+    }
+
     // If searching by code, also check GuestPass first
     if (code) {
       const guestResult = await pool.query(
@@ -120,7 +140,9 @@ export const lookupLaptop = async (req, res) => {
                 l."verifiedById" as verified_by_id,
                 vb."name" as verified_by_name,
                 owner."name" as owner_name,
+                owner."email" as owner_email,
                 owner."studentId" as student_id,
+                student."name" as student_full_name,
                 student."photo" as student_photo_url
          FROM "Laptop" l
          JOIN "User" owner ON l."ownerId" = owner."id"
@@ -139,7 +161,9 @@ export const lookupLaptop = async (req, res) => {
                 l."verifiedById" as verified_by_id,
                 vb."name" as verified_by_name,
                 owner."name" as owner_name,
+                owner."email" as owner_email,
                 owner."studentId" as student_id,
+                student."name" as student_full_name,
                 student."photo" as student_photo_url
          FROM "Laptop" l
          JOIN "User" owner ON l."ownerId" = owner."id"
@@ -202,27 +226,48 @@ export const verifyLaptop = async (req, res) => {
 
 /**
  * POST /api/gate/block/:laptopId
+ * Body: { reason?: string }
  * Requirements: 1.3, 8.5
  */
 export const blockLaptop = async (req, res) => {
   const { laptopId } = req.params
+  const { reason } = req.body
+  const guardId = req.user.id
 
   try {
     const laptopResult = await pool.query(
-      `SELECT id FROM "Laptop" WHERE id = $1`,
-      [laptopId]
+      `SELECT l.id, l."serialNumber", l.brand, l.model,
+              owner."name" as owner_name, owner."studentId" as student_id,
+              guard."name" as guard_name
+       FROM "Laptop" l
+       JOIN "User" owner ON l."ownerId" = owner."id"
+       JOIN "User" guard ON guard."id" = $2
+       WHERE l.id = $1`,
+      [laptopId, guardId]
     )
 
     if (!laptopResult.rows.length) {
       return res.status(404).json({ message: 'No laptop found' })
     }
 
+    const laptop = laptopResult.rows[0]
+
     const updated = await pool.query(
       `UPDATE "Laptop"
-       SET "verificationStatus" = 'BLOCKED'
-       WHERE id = $1
+       SET "verificationStatus" = 'BLOCKED',
+           "blockReason" = $1
+       WHERE id = $2
        RETURNING id, "verificationStatus" as verification_status`,
-      [laptopId]
+      [reason || null, laptopId]
+    )
+
+    // Create admin notification
+    const title = `Laptop Blocked by Guard`
+    const body = `${laptop.guard_name} blocked ${laptop.brand} ${laptop.model} (${laptop.serial_number}) owned by ${laptop.owner_name}${reason ? `. Reason: ${reason}` : '.'}`
+    await pool.query(
+      `INSERT INTO "Notification" ("id", "type", "title", "body", "laptopId", "guardId")
+       VALUES ($1, 'LAPTOP_BLOCKED', $2, $3, $4, $5)`,
+      [crypto.randomUUID(), title, body, laptopId, guardId]
     )
 
     res.json({ message: 'Laptop blocked successfully', laptop: updated.rows[0] })
@@ -318,6 +363,39 @@ export const logExit = async (req, res) => {
     res.json({ message: 'Exit logged successfully' })
   } catch (err) {
     console.error('EXIT ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+/**
+ * GET /api/gate/notifications
+ * Returns unread notifications for admins.
+ */
+export const getNotifications = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, type, title, body, "isRead", "createdAt", "laptopId", "guardId"
+       FROM "Notification"
+       ORDER BY "createdAt" DESC
+       LIMIT 50`
+    )
+    res.json(result.rows)
+  } catch (err) {
+    console.error('GET NOTIFICATIONS ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}
+
+/**
+ * POST /api/gate/notifications/mark-read
+ * Marks all notifications as read.
+ */
+export const markNotificationsRead = async (req, res) => {
+  try {
+    await pool.query(`UPDATE "Notification" SET "isRead" = true WHERE "isRead" = false`)
+    res.json({ message: 'Marked as read' })
+  } catch (err) {
+    console.error('MARK READ ERROR:', err)
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }

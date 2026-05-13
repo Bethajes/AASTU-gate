@@ -22,8 +22,8 @@ describe('Property 1: Institutional email validation rejects non-conforming addr
     // Generate arbitrary strings and confirm they are rejected
     fc.assert(
       fc.property(fc.string(), (s) => {
-        // Only check strings that we know don't match the valid pattern
-        const validPattern = /^[a-zA-Z]+\.[a-zA-Z]+@aastustudent\.edu\.et$/
+        // Only check strings that we know don't match either valid pattern
+        const validPattern = /^[a-zA-Z]+\.[a-zA-Z]+@aastustudents?\.edu\.et$/
         if (validPattern.test(s)) return // skip valid inputs
         return isInstitutionalEmail(s) === false
       }),
@@ -32,13 +32,14 @@ describe('Property 1: Institutional email validation rejects non-conforming addr
   })
 
   it('returns true for valid institutional emails', () => {
-    // Generate valid firstname.fathername@aastustudent.edu.et emails
+    // Generate valid emails for both @aastustudent.edu.et and @aastustudents.edu.et
     fc.assert(
       fc.property(
         fc.stringMatching(/^[a-zA-Z]+$/),
         fc.stringMatching(/^[a-zA-Z]+$/),
-        (first, father) => {
-          const email = `${first}.${father}@aastustudent.edu.et`
+        fc.constantFrom('aastustudent.edu.et', 'aastustudents.edu.et'),
+        (first, father, domain) => {
+          const email = `${first}.${father}@${domain}`
           return isInstitutionalEmail(email) === true
         }
       ),
@@ -53,8 +54,8 @@ describe('Property 1: Institutional email validation rejects non-conforming addr
         fc.stringMatching(/^[a-zA-Z]+$/),
         fc.domain(),
         (first, father, domain) => {
-          // Exclude the valid domain
-          if (domain === 'aastustudent.edu.et') return
+          // Exclude both valid domains
+          if (domain === 'aastustudent.edu.et' || domain === 'aastustudents.edu.et') return
           const email = `${first}.${father}@${domain}`
           return isInstitutionalEmail(email) === false
         }

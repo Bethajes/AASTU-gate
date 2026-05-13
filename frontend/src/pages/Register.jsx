@@ -45,7 +45,7 @@ export default function Register() {
           </div>
           <div style={styles.field}>
             <label style={styles.label}>Email</label>
-            <input className="auth-input" style={styles.input} type="email" placeholder="firstname.fathername@aastustudent.edu.et"
+            <input className="auth-input" style={styles.input} type="email" placeholder="firstname.fathername@aastustudent(s).edu.et"
               value={form.email} onChange={e => setForm({...form, email: e.target.value})} required />
           </div>
           <div style={styles.field}>

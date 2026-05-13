@@ -77,10 +77,10 @@ afterEach(async () => {
 // **Validates: Requirements 3.1, 3.2**
 // ---------------------------------------------------------------------------
 describe('Property 1: Institutional email domain enforcement', () => {
-  it('send-otp returns 400 for any email not ending with @aastustudent.edu.et', async () => {
+  it('send-otp returns 400 for any email not ending with @aastustudent.edu.et or @aastustudents.edu.et', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.emailAddress().filter(e => !e.endsWith('@aastustudent.edu.et')),
+        fc.emailAddress().filter(e => !e.endsWith('@aastustudent.edu.et') && !e.endsWith('@aastustudents.edu.et')),
         async (badEmail) => {
           const id = uniqueStudentId()
           const username = `p1-${crypto.randomUUID().slice(0, 6)}`

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import API from '../api/axios'
+import TransferLaptopModal from './TransferLaptopModal'
 
 const API_ORIGIN = (API.defaults?.baseURL || '').replace(/\/api\/?$/, '')
 
@@ -137,6 +138,10 @@ export default function StudentLaptopsPanel({ student, onClose }) {
   const [confirmId, setConfirmId]     = useState(null)
   const [deleting, setDeleting]       = useState(false)
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null)
+  const [transferLaptop, setTransferLaptop] = useState(null)
+  const [historyLaptopId, setHistoryLaptopId] = useState(null)
+  const [transferLogs, setTransferLogs] = useState({})
+  const [loadingHistory, setLoadingHistory] = useState(null)
 
   const studentId = student.student_id || student.id
   const studentName = student.full_name || student.name
@@ -155,6 +160,24 @@ export default function StudentLaptopsPanel({ student, onClose }) {
   }, [studentId])
 
   useEffect(() => { fetchLaptops() }, [fetchLaptops])
+
+  const toggleHistory = async (laptopId) => {
+    if (historyLaptopId === laptopId) {
+      setHistoryLaptopId(null)
+      return
+    }
+    setHistoryLaptopId(laptopId)
+    if (transferLogs[laptopId]) return // already fetched
+    setLoadingHistory(laptopId)
+    try {
+      const res = await API.get(`/laptops/${laptopId}/transfer-logs`)
+      setTransferLogs(prev => ({ ...prev, [laptopId]: Array.isArray(res.data) ? res.data : [] }))
+    } catch (err) {
+      setTransferLogs(prev => ({ ...prev, [laptopId]: [] }))
+    } finally {
+      setLoadingHistory(null)
+    }
+  }
 
   const handleDelete = async () => {
     if (!confirmId) return
@@ -247,49 +270,107 @@ export default function StudentLaptopsPanel({ student, onClose }) {
               const st = STATUS_STYLE[laptop.verification_status] ?? STATUS_STYLE.PENDING
               const photo = laptopPhotoUrl(laptop.photo_url)
               return (
-                <li key={laptop.id} style={s.laptopCard}>
-                  <div style={s.laptopLeft}>
-                    <label style={{ cursor: 'pointer', flexShrink: 0, position: 'relative' }} title="Click to update photo">
-                      {photo ? (
-                        <img src={photo} alt={laptop.brand} style={s.laptopPhoto} />
-                      ) : (
-                        <div style={s.laptopPhotoPlaceholder}>💻</div>
-                      )}
-                      <div style={s.photoOverlay}>
-                        {uploadingPhotoId === laptop.id ? '…' : '📷'}
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        disabled={uploadingPhotoId === laptop.id}
-                        onChange={e => handlePhotoUpload(laptop.id, e.target.files?.[0])}
-                      />
-                    </label>
-                    <div>
-                      <div style={s.laptopName}>{laptop.brand} {laptop.model}</div>
-                      <div style={s.laptopSerial}>{laptop.serial_number}</div>
-                      <div style={{ marginTop: 4 }}>
-                        <span style={{ ...s.badge, backgroundColor: st.bg, color: st.color }}>
-                          {st.label}
-                        </span>
-                        {laptop.is_in_campus && (
-                          <span style={{ ...s.badge, backgroundColor: '#e3f2fd', color: '#1565c0', marginLeft: 6 }}>
-                            🏛 On Campus
-                          </span>
+                <li key={laptop.id} style={s.laptopItem}>
+                  <div style={s.laptopCard}>
+                    <div style={s.laptopLeft}>
+                      <label style={{ cursor: 'pointer', flexShrink: 0, position: 'relative' }} title="Click to update photo">
+                        {photo ? (
+                          <img src={photo} alt={laptop.brand} style={s.laptopPhoto} />
+                        ) : (
+                          <div style={s.laptopPhotoPlaceholder}>💻</div>
                         )}
+                        <div style={s.photoOverlay}>
+                          {uploadingPhotoId === laptop.id ? '…' : '📷'}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          disabled={uploadingPhotoId === laptop.id}
+                          onChange={e => handlePhotoUpload(laptop.id, e.target.files?.[0])}
+                        />
+                      </label>
+                      <div>
+                        <div style={s.laptopName}>{laptop.brand} {laptop.model}</div>
+                        <div style={s.laptopSerial}>{laptop.serial_number}</div>
+                        <div style={{ marginTop: 4 }}>
+                          <span style={{ ...s.badge, backgroundColor: st.bg, color: st.color }}>
+                            {st.label}
+                          </span>
+                          {laptop.is_in_campus && (
+                            <span style={{ ...s.badge, backgroundColor: '#e3f2fd', color: '#1565c0', marginLeft: 6 }}>
+                              🏛 On Campus
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    <div style={s.cardActions}>
+                      <button
+                        style={{ ...s.historyBtn, ...(historyLaptopId === laptop.id ? s.historyBtnActive : {}) }}
+                        onClick={() => toggleHistory(laptop.id)}
+                        aria-label={`Toggle transfer history for ${laptop.brand} ${laptop.model}`}
+                        title="Transfer history"
+                      >
+                        📋
+                      </button>
+                      <button
+                        style={s.transferBtn}
+                        onClick={() => setTransferLaptop(laptop)}
+                        disabled={deleting}
+                        aria-label={`Transfer ${laptop.brand} ${laptop.model}`}
+                        title="Transfer laptop"
+                      >
+                        🔄
+                      </button>
+                      <button
+                        style={s.deleteBtn}
+                        onClick={() => setConfirmId(laptop.id)}
+                        disabled={deleting}
+                        aria-label={`Delete ${laptop.brand} ${laptop.model}`}
+                        title="Delete laptop"
+                      >
+                        🗑
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    style={s.deleteBtn}
-                    onClick={() => setConfirmId(laptop.id)}
-                    disabled={deleting}
-                    aria-label={`Delete ${laptop.brand} ${laptop.model}`}
-                    title="Delete laptop"
-                  >
-                    🗑
-                  </button>
+
+                  {/* Transfer history panel */}
+                  {historyLaptopId === laptop.id && (
+                    <div style={s.historyPanel}>
+                      <div style={s.historyTitle}>Transfer History</div>
+                      {loadingHistory === laptop.id && (
+                        <p style={s.historyEmpty}>Loading…</p>
+                      )}
+                      {!loadingHistory && transferLogs[laptop.id]?.length === 0 && (
+                        <p style={s.historyEmpty}>No transfer history for this laptop.</p>
+                      )}
+                      {!loadingHistory && transferLogs[laptop.id]?.length > 0 && (
+                        <ul style={s.historyList}>
+                          {transferLogs[laptop.id].map(log => (
+                            <li key={log.id} style={s.historyEntry}>
+                              <div style={s.historyRow}>
+                                <span style={s.historyLabel}>From</span>
+                                <span style={s.historyValue}>{log.from_owner_name} <span style={s.historyId}>({log.from_student_id})</span></span>
+                              </div>
+                              <div style={s.historyRow}>
+                                <span style={s.historyLabel}>To</span>
+                                <span style={s.historyValue}>{log.to_owner_name} <span style={s.historyId}>({log.to_student_id})</span></span>
+                              </div>
+                              <div style={s.historyRow}>
+                                <span style={s.historyLabel}>By</span>
+                                <span style={s.historyValue}>{log.transferred_by_name}</span>
+                              </div>
+                              <div style={s.historyRow}>
+                                <span style={s.historyLabel}>When</span>
+                                <span style={s.historyValue}>{new Date(log.transferred_at).toLocaleString()}</span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </li>
               )
             })}
@@ -313,6 +394,15 @@ export default function StudentLaptopsPanel({ student, onClose }) {
           </div>
         </div>
       )}
+
+      {/* Transfer laptop modal */}
+      {transferLaptop && (
+        <TransferLaptopModal
+          laptop={transferLaptop}
+          onClose={() => setTransferLaptop(null)}
+          onSuccess={() => { setTransferLaptop(null); fetchLaptops() }}
+        />
+      )}
     </>
   )
 }
@@ -331,7 +421,8 @@ const s = {
   retryBtn:      { padding: '4px 10px', backgroundColor: '#1a1a2e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 },
   empty:         { textAlign: 'center', color: '#aaa', padding: '40px 20px', fontSize: 14 },
   list:          { listStyle: 'none', margin: 0, padding: '8px 0' },
-  laptopCard:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid #f5f5f5', gap: 12 },
+  laptopItem:    { borderBottom: '1px solid #f5f5f5' },
+  laptopCard:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', gap: 12 },
   laptopLeft:    { display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 },
   laptopPhoto:   { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid #eee', flexShrink: 0, display: 'block' },
   laptopPhotoPlaceholder: { width: 48, height: 48, borderRadius: 8, backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 },
@@ -340,13 +431,26 @@ const s = {
   laptopSerial:  { fontSize: 12, color: '#888', fontFamily: 'monospace', marginTop: 2 },
   badge:         { display: 'inline-block', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500 },
   deleteBtn:     { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#e53935', padding: '4px 6px', borderRadius: 6, flexShrink: 0 },
+  cardActions:   { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 },
+  transferBtn:   { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#1565c0', padding: '4px 6px', borderRadius: 6, flexShrink: 0 },
+  historyBtn:    { background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#888', padding: '4px 6px', borderRadius: 6, flexShrink: 0 },
+  historyBtnActive: { color: '#1a1a2e', backgroundColor: '#f0f0f0' },
+  historyPanel:  { margin: '0 20px 12px', backgroundColor: '#f9f9f9', borderRadius: 8, border: '1px solid #eee', padding: '12px 14px' },
+  historyTitle:  { fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' },
+  historyEmpty:  { fontSize: 13, color: '#aaa', margin: 0, textAlign: 'center', padding: '8px 0' },
+  historyList:   { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 },
+  historyEntry:  { backgroundColor: '#fff', borderRadius: 6, border: '1px solid #eee', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 },
+  historyRow:    { display: 'flex', gap: 8, fontSize: 12 },
+  historyLabel:  { color: '#888', fontWeight: 600, minWidth: 36 },
+  historyValue:  { color: '#1a1a2e' },
+  historyId:     { color: '#888', fontFamily: 'monospace' },
   // register form
   regForm:       { display: 'flex', flexDirection: 'column', gap: 0 },
   regTitle:      { fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 },
   apiError:      { backgroundColor: '#fff3cd', border: '1px solid #ffc107', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#856404' },
   fieldGroup:    { marginBottom: 12 },
   label:         { display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 500, color: '#555' },
-  input:         { width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' },
+  input:         { display: 'block', width: '100%', padding: '8px 10px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff', color: '#1a1a2e' },
   inputError:    { borderColor: '#e53935' },
   fieldError:    { display: 'block', marginTop: 3, fontSize: 11, color: '#e53935' },
   photoUploadLabel:    { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed #ddd', borderRadius: 8, padding: 8, cursor: 'pointer', minHeight: 72, overflow: 'hidden' },

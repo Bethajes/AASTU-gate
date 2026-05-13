@@ -437,3 +437,117 @@ export const getLaptopByCode = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message })
   }
 }
+
+// ─── Admin: transfer laptop ownership ────────────────────────────────────────
+export const transferLaptop = async (req, res) => {
+  const { id } = req.params
+  const { targetStudentId } = req.body
+  const adminId = req.user.id
+
+  if (!targetStudentId) {
+    return res.status(400).json({ message: 'targetStudentId is required' })
+  }
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // 1. Verify laptop exists
+    const laptopRes = await client.query(
+      `SELECT id, "ownerId" FROM "Laptop" WHERE id = $1`,
+      [id]
+    )
+    if (!laptopRes.rows[0]) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ message: 'Laptop not found' })
+    }
+    const laptop = laptopRes.rows[0]
+
+    // 2. Resolve target student to an activated User account
+    const userRes = await client.query(
+      `SELECT u.id FROM "User" u
+       JOIN "Student" s ON u."studentId" = s.id
+       WHERE s.id = $1 AND s."isActivated" = true`,
+      [targetStudentId]
+    )
+    if (!userRes.rows[0]) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ message: `No activated user account found for student ${targetStudentId}` })
+    }
+    const targetUserId = userRes.rows[0].id
+
+    // 3. Reject transfer to current owner
+    if (laptop.ownerId === targetUserId) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ message: 'Laptop is already owned by this student' })
+    }
+
+    // 4. Execute transfer + audit log in one transaction
+    const updated = await client.query(
+      `UPDATE "Laptop"
+       SET "ownerId" = $1, "verificationStatus" = 'PENDING', "verifiedAt" = NULL, "verifiedById" = NULL
+       WHERE id = $2
+       RETURNING id, "ownerId", "verificationStatus", "verifiedAt", "verifiedById"`,
+      [targetUserId, id]
+    )
+
+    const logId = crypto.randomUUID()
+    await client.query(
+      `INSERT INTO "laptop_transfer_logs" (id, "laptopId", "fromUserId", "toUserId", "transferredById")
+       VALUES ($1, $2, $3, $4, $5)`,
+      [logId, id, laptop.ownerId, targetUserId, adminId]
+    )
+
+    await client.query('COMMIT')
+
+    const row = updated.rows[0]
+    res.json({
+      message: 'Laptop transferred successfully',
+      laptop: {
+        id: row.id,
+        owner_id: row.ownerId,
+        verification_status: row.verificationStatus,
+        verified_at: row.verifiedAt,
+        verified_by_id: row.verifiedById,
+      },
+    })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('TRANSFER LAPTOP ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  } finally {
+    client.release()
+  }
+}
+
+// ─── Admin: get transfer logs for a laptop ────────────────────────────────────
+export const getLaptopTransferLogs = async (req, res) => {
+  const { id } = req.params
+  try {
+    const result = await pool.query(
+      `SELECT
+         tl.id,
+         tl."laptopId"        AS laptop_id,
+         tl."fromUserId"      AS from_user_id,
+         fu.name              AS from_owner_name,
+         fu."studentId"       AS from_student_id,
+         tl."toUserId"        AS to_user_id,
+         tu.name              AS to_owner_name,
+         tu."studentId"       AS to_student_id,
+         tl."transferredById" AS transferred_by_id,
+         ab.name              AS transferred_by_name,
+         tl."transferredAt"   AS transferred_at
+       FROM "laptop_transfer_logs" tl
+       JOIN "User" fu ON tl."fromUserId"      = fu.id
+       JOIN "User" tu ON tl."toUserId"        = tu.id
+       JOIN "User" ab ON tl."transferredById" = ab.id
+       WHERE tl."laptopId" = $1
+       ORDER BY tl."transferredAt" DESC`,
+      [id]
+    )
+    res.json(result.rows)
+  } catch (err) {
+    console.error('GET TRANSFER LOGS ERROR:', err)
+    res.status(500).json({ message: 'Server error', error: err.message })
+  }
+}

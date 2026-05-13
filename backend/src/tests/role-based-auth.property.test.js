@@ -30,7 +30,7 @@ function makeReqRes(body = {}) {
   return { req, res }
 }
 
-// Generates a valid AASTU institutional email: firstname.fathername@aastustudent.edu.et
+// Generates a valid AASTU institutional email: firstname.fathername@aastustudent.edu.et or @aastustudents.edu.et
 function validEmail(first, father) {
   return `${first}.${father}@aastustudent.edu.et`
 }

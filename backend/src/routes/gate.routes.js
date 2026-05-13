@@ -7,6 +7,8 @@ import {
   blockLaptop,
   logEntry,
   logExit,
+  getNotifications,
+  markNotificationsRead,
 } from '../controllers/gate.controller.js'
 import { protect, allowRoles } from '../middleware/auth.middleware.js'
 
@@ -22,5 +24,9 @@ router.post('/verify/:laptopId', protect, allowRoles('GUARD', 'ADMIN'), verifyLa
 router.post('/entry/:laptopId', protect, allowRoles('GUARD', 'ADMIN'), logEntry)
 router.post('/exit/:laptopId', protect, allowRoles('GUARD', 'ADMIN'), logExit)
 router.post('/block/:laptopId', protect, allowRoles('GUARD', 'ADMIN'), blockLaptop)
+
+// Notifications (admin only)
+router.get('/notifications', protect, allowRoles('ADMIN'), getNotifications)
+router.post('/notifications/mark-read', protect, allowRoles('ADMIN'), markNotificationsRead)
 
 export default router

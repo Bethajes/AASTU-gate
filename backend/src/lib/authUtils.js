@@ -2,10 +2,11 @@ import jwt from 'jsonwebtoken'
 
 /**
  * Validates that an email matches the AASTU institutional format:
- * firstname.fathername@aastustudent.edu.et
+ * firstname.fathername@aastustudent.edu.et  (upper years)
+ * firstname.fathername@aastustudents.edu.et (freshman)
  */
 export function isInstitutionalEmail(email) {
-  return /^[a-zA-Z]+\.[a-zA-Z]+@aastustudent\.edu\.et$/.test(email)
+  return /^[a-zA-Z]+\.[a-zA-Z]+@aastustudents?\.edu\.et$/.test(email)
 }
 
 /**
