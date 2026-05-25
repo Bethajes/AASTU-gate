@@ -42,7 +42,7 @@ export default function Login() {
       <header style={s.header}>
         <AASTULogo orientation="horizontal" showText={false} tone="onDark" style={{ maxHeight: 44 }} />
         <div style={s.headerCenter}>
-          <span style={s.headerTitle}>AASTU ICT | Campus Security Operations</span>
+          <span style={s.headerTitle}>AASTU Campus Asset & Security Registry</span>
           <span style={s.headerSub}>Laptop Gate Pass System</span>
         </div>
         <div style={s.langSwitcher}>

@@ -48,6 +48,9 @@ export const getLogs = async (req, res) => {
               gl."action" as action,
               -- Laptop fields (null for guest rows)
               l."serialNumber" as serial_number, l.brand,
+              l."registrantName" as registrant_name,
+              l."registrantPhone" as registrant_phone,
+              l."securityStatus" as security_status,
               owner."name" as owner_name,
               -- Guest fields (null for laptop rows)
               gp."guestName" as guest_name,
@@ -135,6 +138,11 @@ export const lookupLaptop = async (req, res) => {
         `SELECT l.id, l."serialNumber" as serial_number, l.brand, l.model,
                 l."qrCode" as qr_code, l."isInCampus" as is_in_campus,
                 l."photoUrl" as photo_url,
+                l."registrantName" as registrant_name,
+                l."registrantPhone" as registrant_phone,
+                l."securityStatus" as security_status,
+                l."reportReason" as report_reason,
+                l."reportedAt" as reported_at,
                 l."verificationStatus" as verification_status,
                 l."verifiedAt" as verified_at,
                 l."verifiedById" as verified_by_id,
@@ -156,6 +164,11 @@ export const lookupLaptop = async (req, res) => {
         `SELECT l.id, l."serialNumber" as serial_number, l.brand, l.model,
                 l."qrCode" as qr_code, l."isInCampus" as is_in_campus,
                 l."photoUrl" as photo_url,
+                l."registrantName" as registrant_name,
+                l."registrantPhone" as registrant_phone,
+                l."securityStatus" as security_status,
+                l."reportReason" as report_reason,
+                l."reportedAt" as reported_at,
                 l."verificationStatus" as verification_status,
                 l."verifiedAt" as verified_at,
                 l."verifiedById" as verified_by_id,
@@ -287,7 +300,7 @@ export const logEntry = async (req, res) => {
 
   try {
     const laptopResult = await pool.query(
-      `SELECT id, "verificationStatus", "isInCampus" FROM "Laptop" WHERE id = $1`,
+      `SELECT id, "verificationStatus", "isInCampus", "securityStatus" FROM "Laptop" WHERE id = $1`,
       [laptopId]
     )
     const laptop = laptopResult.rows[0]
@@ -332,7 +345,7 @@ export const logExit = async (req, res) => {
 
   try {
     const laptopResult = await pool.query(
-      `SELECT id, "verificationStatus", "isInCampus" FROM "Laptop" WHERE id = $1`,
+      `SELECT id, "verificationStatus", "isInCampus", "securityStatus" FROM "Laptop" WHERE id = $1`,
       [laptopId]
     )
     const laptop = laptopResult.rows[0]
@@ -341,6 +354,9 @@ export const logExit = async (req, res) => {
 
     if (laptop.verificationStatus === 'BLOCKED') {
       return res.status(403).json({ message: 'Laptop is blocked' })
+    }
+    if (laptop.securityStatus === 'STOLEN') {
+      return res.status(403).json({ message: 'Security alert: this laptop is reported stolen. Exit approval is not allowed.' })
     }
     if (laptop.verificationStatus === 'PENDING') {
       return res.status(403).json({ message: 'Laptop must be verified first' })

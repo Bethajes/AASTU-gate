@@ -5,309 +5,559 @@ import AASTUFooter from '../components/AASTUFooter'
 
 const BASE_URL = 'http://localhost:5001'
 
-function verificationBadgeStyle(status) {
-  switch (status) {
-    case 'VERIFIED': return { backgroundColor: '#e6ffed', color: '#2e7d32' }
-    case 'BLOCKED':  return { backgroundColor: '#fff0f0', color: '#c62828' }
-    default:         return { backgroundColor: '#fff8e1', color: '#e65100' }
-  }
+/* ─── brand tokens ─── */
+const C = {
+  navy:    '#0033A0',
+  navyDk:  '#002080',
+  gold:    '#F9A825',
+  goldLt:  '#FFF8E1',
+  green:   '#2E7D32',
+  red:     '#C62828',
+  orange:  '#E65100',
+  surface: '#F4F6FB',
+  white:   '#FFFFFF',
+  border:  '#E2E8F4',
+  text:    '#1A2340',
+  muted:   '#6B7A99',
 }
 
-function verificationBadgeLabel(status) {
-  switch (status) {
-    case 'VERIFIED': return '✅ Verified'
-    case 'BLOCKED':  return '🚫 Blocked'
-    default:         return '⏳ Pending Verification'
+/* ─── helpers ─── */
+function vBadge(s) {
+  const map = {
+    VERIFIED: { bg:'#E6FFF0', color:C.green,  icon:'✔', label:'Verified'  },
+    BLOCKED:  { bg:'#FFF0F0', color:C.red,    icon:'✖', label:'Blocked'   },
   }
+  return map[s] ?? { bg:'#FFF8E1', color:C.orange, icon:'⏳', label:'Pending' }
 }
 
+function sBadge(s) {
+  const map = {
+    STOLEN: { bg:'#FFEBEE', color:C.red,    border:'#FFCDD2', icon:'🚨', label:'Stolen'  },
+    LOST:   { bg:'#FFF8E1', color:'#8A5A00', border:C.gold,  icon:'⚠️', label:'Lost'    },
+  }
+  return map[s] ?? { bg:'#E8F5E9', color:C.green, border:'#A5D6A7', icon:'●', label:'Active' }
+}
+
+/* ─── tiny sub-components ─── */
+function Chip({ bg, color, border, icon, label }) {
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:5,
+      padding:'5px 12px', borderRadius:20, fontSize:12, fontWeight:700,
+      background:bg, color, border:`1px solid ${border ?? bg}`,
+      letterSpacing:.3, whiteSpace:'nowrap',
+    }}>
+      <span style={{fontSize:10}}>{icon}</span>{label}
+    </span>
+  )
+}
+
+function Alert({ type, children }) {
+  const cfg = type === 'error'
+    ? { bg:'#FFF0F0', color:C.red,   border:'#FFCDD2', icon:'✖' }
+    : { bg:'#E8F5E9', color:C.green, border:'#A5D6A7', icon:'✔' }
+  return (
+    <div style={{
+      display:'flex', alignItems:'flex-start', gap:10,
+      background:cfg.bg, color:cfg.color, border:`1px solid ${cfg.border}`,
+      borderRadius:10, padding:'12px 16px', fontSize:13.5, fontWeight:500,
+      marginBottom:18, lineHeight:1.5,
+      animation:'fadeSlide .3s ease',
+    }}>
+      <span style={{
+        width:22, height:22, borderRadius:'50%', background:cfg.color, color:'#fff',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        fontSize:11, flexShrink:0, marginTop:1,
+      }}>{cfg.icon}</span>
+      <span>{children}</span>
+    </div>
+  )
+}
+
+function ActionBtn({ onClick, disabled, variant='default', children }) {
+  const vars = {
+    default: { bg:'#EEF2FF', color:C.navy,    border:`1px solid #C7D2FE` },
+    gold:    { bg:C.goldLt,  color:C.orange,  border:`1px solid #FFD700` },
+    danger:  { bg:'#FFF0F0', color:C.red,     border:`1px solid #FFCDD2` },
+    success: { bg:'#E8F5E9', color:C.green,   border:`1px solid #A5D6A7` },
+  }
+  const v = vars[variant]
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding:'7px 13px', borderRadius:8, fontSize:12, fontWeight:700,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? .5 : 1,
+        transition:'all .18s',
+        background: v.bg, color: v.color, border: v.border,
+        whiteSpace:'nowrap',
+      }}
+    >{children}</button>
+  )
+}
+
+/* ─── drag-drop upload zone ─── */
+function PhotoUpload({ preview, onChange, onRemove, label='Laptop Photo (Mandatory)' }) {
+  const [drag, setDrag] = useState(false)
+  const handleDrop = (e) => {
+    e.preventDefault(); setDrag(false)
+    const file = e.dataTransfer.files[0]
+    if (file) onChange(file)
+  }
+  return (
+    <div style={{ marginBottom:18 }}>
+      <label style={ls.label}>{label}</label>
+      {preview ? (
+        <div style={{ display:'flex', alignItems:'center', gap:14, padding:'12px 16px', background:C.surface, borderRadius:12, border:`1px solid ${C.border}` }}>
+          <img src={preview} alt="preview" style={{ width:72, height:72, objectFit:'cover', borderRadius:10, border:`2px solid ${C.border}` }} />
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:4 }}>Photo selected</div>
+            <div style={{ fontSize:12, color:C.muted }}>Looking good! Ready to register.</div>
+          </div>
+          <button onClick={onRemove} style={{ padding:'6px 14px', background:'#FFEBEE', color:C.red, border:`1px solid #FFCDD2`, borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>Remove</button>
+        </div>
+      ) : (
+        <label
+          onDragOver={(e) => { e.preventDefault(); setDrag(true) }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={handleDrop}
+          style={{
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8,
+            padding:'28px 20px', borderRadius:14,
+            border:`2px dashed ${drag ? C.navy : C.border}`,
+            background: drag ? '#EEF2FF' : C.surface,
+            cursor:'pointer', transition:'all .2s', textAlign:'center',
+          }}
+        >
+          <div style={{ fontSize:32, lineHeight:1 }}>💻</div>
+          <div style={{ fontSize:14, fontWeight:600, color:C.text }}>Drag & drop a photo here</div>
+          <div style={{ fontSize:12, color:C.muted }}>or click to browse — JPG, PNG accepted</div>
+          <input type="file" accept="image/*" style={{ display:'none' }}
+            onChange={(e) => { const f = e.target.files[0]; if (f) onChange(f) }} />
+        </label>
+      )}
+    </div>
+  )
+}
+
+/* ─── step progress ─── */
+function StepBar({ step }) {
+  const steps = ['Details','Photo','Confirm']
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:28 }}>
+      {steps.map((s, i) => (
+        <div key={s} style={{ display:'flex', alignItems:'center', flex: i < steps.length-1 ? 1 : 'none' }}>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+            <div style={{
+              width:30, height:30, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:12, fontWeight:800,
+              background: i < step ? C.green : i === step ? C.navy : '#E2E8F4',
+              color: i <= step ? '#fff' : C.muted,
+              transition:'all .3s',
+              boxShadow: i === step ? `0 0 0 4px #C7D2FE` : 'none',
+            }}>{i < step ? '✓' : i+1}</div>
+            <span style={{ fontSize:11, fontWeight:600, color: i <= step ? C.navy : C.muted, whiteSpace:'nowrap' }}>{s}</span>
+          </div>
+          {i < steps.length-1 && (
+            <div style={{ flex:1, height:2, background: i < step ? C.navy : '#E2E8F4', margin:'0 6px', marginBottom:18, transition:'all .3s' }} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ─── main ─── */
 export default function StudentDashboard() {
-  const [laptops, setLaptops] = useState([])
-  const [form, setForm] = useState({ serialNumber: '', brand: '', model: '', photo: null })
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [qrImage, setQrImage] = useState(null)
-  const [qrCodeNumber, setQrCodeNumber] = useState('')
-  const [photoPreview, setPhotoPreview] = useState(null)
-  const [regenerating, setRegenerating] = useState(null)
-  const [regenResult, setRegenResult] = useState({})
-  const [editingId, setEditingId] = useState(null)
-  const [editForm, setEditForm] = useState({})
-  const [editLoading, setEditLoading] = useState(false)
-  const [editError, setEditError] = useState('')
+  const [laptops,       setLaptops]       = useState([])
+  const [form,          setForm]          = useState({ serialNumber:'', brand:'', model:'', photo:null })
+  const [error,         setError]         = useState('')
+  const [success,       setSuccess]       = useState('')
+  const [loading,       setLoading]       = useState(false)
+  const [qrImage,       setQrImage]       = useState(null)
+  const [qrCodeNumber,  setQrCodeNumber]  = useState('')
+  const [photoPreview,  setPhotoPreview]  = useState(null)
+  const [regenerating,  setRegenerating]  = useState(null)
+  const [regenResult,   setRegenResult]   = useState({})
+  const [editingId,     setEditingId]     = useState(null)
+  const [editForm,      setEditForm]      = useState({})
+  const [editLoading,   setEditLoading]   = useState(false)
+  const [editError,     setEditError]     = useState('')
   const [editPhotoPreview, setEditPhotoPreview] = useState(null)
+  const [reportPanel,   setReportPanel]   = useState(null)
+  const [reportComment, setReportComment] = useState('')
+  const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [filter,        setFilter]        = useState('ALL')
+
+  /* derive register step */
+  const regStep = form.photo ? 2 : (form.serialNumber || form.brand || form.model) ? 1 : 0
 
   useEffect(() => { fetchLaptops() }, [])
 
   const fetchLaptops = async () => {
-    try {
-      const res = await API.get('/laptops/my')
-      setLaptops(res.data)
-    } catch (err) {
-      console.error(err)
-    }
+    try { const res = await API.get('/laptops/my'); setLaptops(res.data) }
+    catch (err) { console.error(err) }
   }
 
   const handleRegister = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-    setSuccess('')
-    setQrImage(null)
-    setQrCodeNumber('')
+    e.preventDefault(); setLoading(true); setError(''); setSuccess(''); setQrImage(null); setQrCodeNumber('')
     try {
-      const formData = new FormData()
-      formData.append('serialNumber', form.serialNumber)
-      formData.append('brand', form.brand)
-      formData.append('model', form.model)
-      if (form.photo) formData.append('photo', form.photo)
-      const res = await API.post('/laptops/register', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const fd = new FormData()
+      fd.append('serialNumber', form.serialNumber)
+      fd.append('brand', form.brand)
+      fd.append('model', form.model)
+      if (form.photo) fd.append('photo', form.photo)
+      const res = await API.post('/laptops/register', fd, { headers:{'Content-Type':'multipart/form-data'} })
       setSuccess('Laptop registered successfully!')
-      setQrImage(res.data.qrImage)
-      setQrCodeNumber(res.data.qrCodeNumber)
-      setForm({ serialNumber: '', brand: '', model: '', photo: null })
-      setPhotoPreview(null)
+      setQrImage(res.data.qrImage); setQrCodeNumber(res.data.qrCodeNumber)
+      setForm({ serialNumber:'', brand:'', model:'', photo:null }); setPhotoPreview(null)
       fetchLaptops()
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to register laptop')
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { setError(err.response?.data?.message || 'Failed to register laptop') }
+    finally { setLoading(false) }
   }
 
   const handleRegenerateCode = async (laptopId) => {
     setRegenerating(laptopId)
     try {
       const res = await API.post(`/laptops/${laptopId}/regenerate-code`)
-      setRegenResult(prev => ({ ...prev, [laptopId]: res.data }))
-      fetchLaptops()
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to regenerate code')
-    } finally {
-      setRegenerating(null)
-    }
+      setRegenResult(prev => ({ ...prev, [laptopId]: res.data })); fetchLaptops()
+    } catch (err) { alert(err.response?.data?.message || 'Failed to regenerate code') }
+    finally { setRegenerating(null) }
+  }
+
+  const openReportPanel = (laptop, status) => { setReportPanel({ laptop, status }); setReportComment(''); setError(''); setSuccess('') }
+  const closeReportPanel = () => { setReportPanel(null); setReportComment('') }
+
+  const submitReportPanel = async (e) => {
+    e.preventDefault()
+    if (!reportPanel || !reportComment.trim()) return
+    const { laptop, status } = reportPanel
+    setReportSubmitting(true); setError(''); setSuccess('')
+    try {
+      if (status === 'FOUND') {
+        await API.post(`/laptops/${laptop.id}/found`, { note: reportComment.trim() })
+        setSuccess('Laptop marked active. Admins have been notified.')
+      } else {
+        await API.post(`/laptops/${laptop.id}/report-security-status`, { status, reason: reportComment.trim() })
+        setSuccess(`${laptop.brand} ${laptop.model} marked as ${status.toLowerCase()}.`)
+      }
+      closeReportPanel(); fetchLaptops()
+    } catch (err) { setError(err.response?.data?.message || 'Failed to submit report') }
+    finally { setReportSubmitting(false) }
   }
 
   const startEdit = (laptop) => {
     setEditingId(laptop.id)
     setEditForm({ serialNumber: laptop.serial_number, brand: laptop.brand, model: laptop.model, photo: null })
-    setEditPhotoPreview(null)
-    setEditError('')
+    setEditPhotoPreview(null); setEditError('')
   }
-
-  const cancelEdit = () => {
-    setEditingId(null)
-    setEditPhotoPreview(null)
-    setEditError('')
-  }
+  const cancelEdit = () => { setEditingId(null); setEditPhotoPreview(null); setEditError('') }
 
   const handleEdit = async (e) => {
-    e.preventDefault()
-    setEditLoading(true)
-    setEditError('')
+    e.preventDefault(); setEditLoading(true); setEditError('')
     try {
-      const formData = new FormData()
-      formData.append('serialNumber', editForm.serialNumber)
-      formData.append('brand', editForm.brand)
-      formData.append('model', editForm.model)
-      if (editForm.photo) formData.append('photo', editForm.photo)
-      await API.put(`/laptops/${editingId}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      setEditingId(null)
-      setEditPhotoPreview(null)
-      fetchLaptops()
-    } catch (err) {
-      setEditError(err.response?.data?.message || 'Failed to update laptop')
-    } finally {
-      setEditLoading(false)
-    }
+      const fd = new FormData()
+      fd.append('serialNumber', editForm.serialNumber)
+      fd.append('brand', editForm.brand)
+      fd.append('model', editForm.model)
+      if (editForm.photo) fd.append('photo', editForm.photo)
+      await API.put(`/laptops/${editingId}`, fd, { headers:{'Content-Type':'multipart/form-data'} })
+      setEditingId(null); setEditPhotoPreview(null); fetchLaptops()
+    } catch (err) { setEditError(err.response?.data?.message || 'Failed to update laptop') }
+    finally { setEditLoading(false) }
   }
 
+  /* filter */
+  const filterOptions = ['ALL','ACTIVE','LOST','STOLEN','ON CAMPUS','OFF CAMPUS']
+  const visibleLaptops = laptops.filter(l => {
+    if (filter === 'ALL') return true
+    if (filter === 'ACTIVE')     return (l.security_status || 'ACTIVE') === 'ACTIVE'
+    if (filter === 'LOST')       return l.security_status === 'LOST'
+    if (filter === 'STOLEN')     return l.security_status === 'STOLEN'
+    if (filter === 'ON CAMPUS')  return l.is_in_campus
+    if (filter === 'OFF CAMPUS') return !l.is_in_campus
+    return true
+  })
+
   return (
-    <div style={styles.container}>
+    <div style={{ minHeight:'100vh', background:C.surface, display:'flex', flexDirection:'column', fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap');
+        @keyframes fadeSlide { from { opacity:0; transform:translateY(-6px) } to { opacity:1; transform:none } }
+        @keyframes pulse     { 0%,100%{opacity:1} 50%{opacity:.45} }
+        .card-hover:hover { box-shadow: 0 8px 32px rgba(0,51,160,.12) !important; transform: translateY(-1px); }
+        .btn-primary:hover { background: linear-gradient(135deg,${C.navyDk} 0%,${C.navy} 100%) !important; box-shadow: 0 6px 20px rgba(0,51,160,.35) !important; transform:translateY(-1px); }
+        .btn-primary:active { transform:translateY(0); }
+        .filter-chip:hover { background:${C.navy} !important; color:#fff !important; }
+        input:focus,textarea:focus { border-color:${C.navy} !important; box-shadow:0 0 0 3px rgba(0,51,160,.12) !important; outline:none; }
+        @media(max-width:640px){
+          .reg-row { flex-direction:column !important; }
+          .laptop-card-inner { flex-direction:column !important; align-items:stretch !important; }
+          .badge-group { flex-direction:row !important; flex-wrap:wrap !important; justify-content:flex-start !important; }
+          .action-row { display:grid !important; grid-template-columns:1fr 1fr !important; }
+          .found-btn { grid-column:1/-1 !important; }
+        }
+      `}</style>
+
       <AASTUHeader subtitle="Student Portal" />
 
-      <div style={styles.main} className="fade-in">
-        <div style={styles.content}>
+      <div style={{ flex:1, maxWidth:900, margin:'32px auto', padding:'0 20px', width:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:24 }}>
 
-          {/* ── Register form ── */}
-          <div style={styles.card}>
-            <h2 style={styles.cardTitle}>Register a Laptop</h2>
-            {error && <div style={styles.error}>{error}</div>}
-            {success && <div style={styles.success}>{success}</div>}
-
-            <form onSubmit={handleRegister}>
-              <div style={styles.field}>
-                <label style={styles.label}>Serial Number</label>
-                <input style={styles.input} placeholder="e.g. SN-DELL-001"
-                  value={form.serialNumber}
-                  onChange={e => setForm({ ...form, serialNumber: e.target.value })} required />
-              </div>
-              <div style={styles.row}>
-                <div style={{ ...styles.field, flex: 1 }}>
-                  <label style={styles.label}>Brand</label>
-                  <input style={styles.input} placeholder="e.g. Dell"
-                    value={form.brand}
-                    onChange={e => setForm({ ...form, brand: e.target.value })} required />
-                </div>
-                <div style={{ ...styles.field, flex: 1 }}>
-                  <label style={styles.label}>Model</label>
-                  <input style={styles.input} placeholder="e.g. Latitude 5520"
-                    value={form.model}
-                    onChange={e => setForm({ ...form, model: e.target.value })} required />
-                </div>
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Laptop Photo (Mandatory)</label>
-                <input type="file" accept="image/*" style={styles.fileInput}
-                  onChange={(e) => {
-                    const file = e.target.files[0]
-                    if (file) { setForm({ ...form, photo: file }); setPhotoPreview(URL.createObjectURL(file)) }
-                  }} />
-                {photoPreview && (
-                  <div style={styles.photoPreview}>
-                    <img src={photoPreview} alt="Preview" style={styles.previewImage} />
-                    <button type="button" style={styles.removePhotoBtn}
-                      onClick={() => { setForm({ ...form, photo: null }); setPhotoPreview(null) }}>
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-              <button style={styles.button} type="submit" disabled={loading}>
-                {loading ? 'Registering...' : 'Register Laptop'}
-              </button>
-            </form>
-
-            {qrImage && (
-              <div style={styles.qrContainer}>
-                <p style={styles.qrText}>📱 Print this QR code and stick it on your laptop</p>
-                <img src={qrImage} alt="QR Code" style={styles.qrImage} />
-                <div style={styles.numberBox}>
-                  <div style={styles.numberLabel}>📢 If scanner doesn't work, tell guard this number:</div>
-                  <div style={styles.bigNumber}>{qrCodeNumber}</div>
-                  <div style={styles.numberHint}>Guard can type these 8 digits into the system</div>
-                </div>
-                <a href={qrImage} download="laptop-qr.png">
-                  <button style={styles.downloadBtn}>Download QR Code</button>
-                </a>
-              </div>
-            )}
+        {/* ── Register form ── */}
+        <div style={{ ...ls.card, animation:'fadeSlide .4s ease' }}>
+          {/* header */}
+          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24 }}>
+            <div style={{ width:44, height:44, borderRadius:12, background:`linear-gradient(135deg,${C.navy},${C.navyDk})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>💻</div>
+            <div>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:800, color:C.navy }}>Register a Laptop</h2>
+              <div style={{ fontSize:13, color:C.muted, marginTop:2 }}>Add your laptop to the campus security system</div>
+            </div>
           </div>
 
-          {/* ── My Laptops ── */}
-          <div style={styles.card}>
-            <h2 style={styles.cardTitle}>My Laptops ({laptops.length})</h2>
-            {laptops.length === 0 ? (
-              <p style={styles.empty}>No laptops registered yet.</p>
-            ) : (
-              laptops.map(laptop => (
-                <div key={laptop.id}>
-                  {/* ── Laptop row ── */}
-                  <div style={styles.laptopItem}>
-                    <div style={styles.laptopPhotoWrap}>
-                      {laptop.photo_url
-                        ? <img src={`${BASE_URL}${laptop.photo_url}`} alt={laptop.brand} style={styles.laptopPhoto} />
-                        : <div style={styles.noPhoto}>📷</div>}
-                    </div>
+          <StepBar step={regStep} />
 
-                    <div style={styles.laptopInfo}>
-                      <span style={styles.laptopName}>{laptop.brand} {laptop.model}</span>
-                      <span style={styles.laptopSerial}>Serial: {laptop.serial_number}</span>
-                      {regenResult[laptop.id] ? (
-                        <div style={styles.regenBox}>
-                          <span style={styles.laptopCode}>New Code: {regenResult[laptop.id].qrCodeNumber}</span>
-                          <img src={regenResult[laptop.id].qrImage} alt="QR" style={styles.miniQr} />
-                          <a href={regenResult[laptop.id].qrImage} download="laptop-qr.png" style={styles.dlLink}>Download QR</a>
+          {error   && <Alert type="error">{error}</Alert>}
+          {success && <Alert type="success">{success}</Alert>}
+
+          <form onSubmit={handleRegister}>
+            {/* Serial */}
+            <div style={ls.field}>
+              <label style={ls.label}>Serial Number</label>
+              <input style={ls.input} placeholder="e.g. SN-DELL-001"
+                value={form.serialNumber}
+                onChange={e => setForm({...form, serialNumber:e.target.value})} required />
+            </div>
+            {/* Brand + Model */}
+            <div style={{ display:'flex', gap:16 }} className="reg-row">
+              <div style={{ ...ls.field, flex:1 }}>
+                <label style={ls.label}>Brand</label>
+                <input style={ls.input} placeholder="e.g. Dell, HP, Lenovo…"
+                  value={form.brand}
+                  onChange={e => setForm({...form, brand:e.target.value})} required />
+              </div>
+              <div style={{ ...ls.field, flex:1 }}>
+                <label style={ls.label}>Model</label>
+                <input style={ls.input} placeholder="e.g. Latitude 5520"
+                  value={form.model}
+                  onChange={e => setForm({...form, model:e.target.value})} required />
+              </div>
+            </div>
+            {/* Photo */}
+            <PhotoUpload
+              preview={photoPreview}
+              onChange={(file) => { setForm({...form, photo:file}); setPhotoPreview(URL.createObjectURL(file)) }}
+              onRemove={() => { setForm({...form, photo:null}); setPhotoPreview(null) }}
+            />
+            <button type="submit" disabled={loading} className="btn-primary" style={ls.btnPrimary}>
+              {loading
+                ? <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                    <span style={{ width:16, height:16, border:`2px solid rgba(255,255,255,.4)`, borderTopColor:'#fff', borderRadius:'50%', animation:'spin 1s linear infinite', display:'inline-block' }} />
+                    Registering…
+                  </span>
+                : '💾 Register Laptop'}
+            </button>
+          </form>
+
+          {/* QR result */}
+          {qrImage && (
+            <div style={{ marginTop:24, background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:28, textAlign:'center', animation:'fadeSlide .4s ease' }}>
+              <div style={{ fontSize:15, fontWeight:700, color:C.navy, marginBottom:4 }}>📱 Print & stick this QR on your laptop</div>
+              <div style={{ fontSize:13, color:C.muted, marginBottom:20 }}>Guard will scan it at the gate for quick entry</div>
+              <img src={qrImage} alt="QR Code" style={{ width:180, height:180, borderRadius:12, border:`3px solid ${C.border}`, display:'block', margin:'0 auto 20px' }} />
+              <div style={{ background:C.goldLt, border:`2px solid ${C.gold}`, borderRadius:14, padding:'20px 24px', marginBottom:18 }}>
+                <div style={{ fontSize:12, color:C.orange, fontWeight:600, marginBottom:10 }}>📢 If QR scanner fails, read out this code to the guard:</div>
+                <div style={{ fontSize:48, fontWeight:800, fontFamily:"'DM Mono', monospace", color:C.navy, letterSpacing:10, margin:'4px 0 8px' }}>{qrCodeNumber}</div>
+                <div style={{ fontSize:12, color:C.muted }}>Guard types these 8 digits into the system</div>
+              </div>
+              <a href={qrImage} download="laptop-qr.png">
+                <button className="btn-primary" style={{ ...ls.btnPrimary, width:'auto', padding:'10px 28px', fontSize:14 }}>⬇ Download QR Code</button>
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* ── My Laptops ── */}
+        <div style={ls.card}>
+          {/* header + filter */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:20 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:44, height:44, borderRadius:12, background:`linear-gradient(135deg,${C.navy},${C.navyDk})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>🗂</div>
+              <div>
+                <h2 style={{ margin:0, fontSize:20, fontWeight:800, color:C.navy }}>My Laptops</h2>
+                <div style={{ fontSize:13, color:C.muted }}>{laptops.length} device{laptops.length !== 1 ? 's' : ''} registered</div>
+              </div>
+            </div>
+            {/* filter chips */}
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {filterOptions.map(f => (
+                <button key={f} className="filter-chip" onClick={() => setFilter(f)} style={{
+                  padding:'6px 14px', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer', transition:'all .18s',
+                  background: filter === f ? C.navy : C.surface,
+                  color:       filter === f ? '#fff'  : C.muted,
+                  border:      filter === f ? `1px solid ${C.navy}` : `1px solid ${C.border}`,
+                }}>{f}</button>
+              ))}
+            </div>
+          </div>
+
+          {visibleLaptops.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'50px 20px' }}>
+              <div style={{ fontSize:48, marginBottom:12 }}>🔍</div>
+              <div style={{ fontSize:16, fontWeight:700, color:C.text, marginBottom:6 }}>
+                {laptops.length === 0 ? 'No laptops registered yet' : 'No laptops match this filter'}
+              </div>
+              <div style={{ fontSize:13, color:C.muted }}>
+                {laptops.length === 0 ? 'Use the form above to register your first device.' : 'Try a different filter above.'}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {visibleLaptops.map(laptop => {
+                const vb = vBadge(laptop.verification_status)
+                const sb = sBadge(laptop.security_status || 'ACTIVE')
+                const rr = regenResult[laptop.id]
+                return (
+                  <div key={laptop.id}>
+                    {/* ── card ── */}
+                    <div className="card-hover" style={{ background:'#fff', border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px', transition:'all .22s', overflow:'hidden' }}>
+                      <div className="laptop-card-inner" style={{ display:'flex', alignItems:'flex-start', gap:16 }}>
+                        {/* photo */}
+                        <div style={{ flexShrink:0 }}>
+                          {laptop.photo_url
+                            ? <img src={`${BASE_URL}${laptop.photo_url}`} alt={laptop.brand}
+                                style={{ width:72, height:72, objectFit:'cover', borderRadius:12, border:`2px solid ${C.border}` }} />
+                            : <div style={{ width:72, height:72, borderRadius:12, background:C.surface, border:`2px dashed ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>💻</div>
+                          }
                         </div>
-                      ) : (
-                        laptop.qr_code && <span style={styles.laptopCode}>Code: {laptop.qr_code}</span>
-                      )}
-                      <div style={styles.actionRow}>
-                        <button style={styles.regenBtn}
-                          onClick={() => handleRegenerateCode(laptop.id)}
-                          disabled={regenerating === laptop.id}>
-                          {regenerating === laptop.id ? 'Regenerating...' : '🔄 Lost code? Get new one'}
-                        </button>
-                        <button style={styles.editBtn}
-                          onClick={() => editingId === laptop.id ? cancelEdit() : startEdit(laptop)}>
-                          {editingId === laptop.id ? '✕ Cancel' : '✏️ Edit Laptop'}
-                        </button>
+
+                        {/* info */}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:16, fontWeight:800, color:C.navy, marginBottom:2 }}>{laptop.brand} {laptop.model}</div>
+                          <div style={{ fontSize:12.5, color:C.muted, marginBottom:4 }}>Serial: {laptop.serial_number}</div>
+                          {laptop.report_reason && laptop.security_status !== 'ACTIVE' && (
+                            <div style={{ fontSize:12, color:'#8A5A00', fontWeight:600, background:C.goldLt, padding:'4px 10px', borderRadius:6, display:'inline-block', marginBottom:6 }}>
+                              Reason: {laptop.report_reason}
+                            </div>
+                          )}
+                          {/* QR code display */}
+                          {rr ? (
+                            <div style={{ background:C.goldLt, border:`1px solid ${C.gold}`, borderRadius:10, padding:'10px 14px', marginBottom:8, display:'flex', alignItems:'center', gap:12 }}>
+                              <img src={rr.qrImage} alt="QR" style={{ width:52, height:52, borderRadius:8 }} />
+                              <div>
+                                <div style={{ fontSize:11, color:C.orange, fontWeight:700 }}>New Code</div>
+                                <div style={{ fontSize:20, fontWeight:800, fontFamily:"'DM Mono',monospace", color:C.navy, letterSpacing:4 }}>{rr.qrCodeNumber}</div>
+                                <a href={rr.qrImage} download="laptop-qr.png" style={{ fontSize:11, color:C.navy, fontWeight:700 }}>⬇ Download QR</a>
+                              </div>
+                            </div>
+                          ) : laptop.qr_code && (
+                            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:C.goldLt, border:`1px solid ${C.gold}`, padding:'4px 12px', borderRadius:8, marginBottom:6 }}>
+                              <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Code</span>
+                              <span style={{ fontSize:15, fontWeight:800, fontFamily:"'DM Mono',monospace", color:C.navy, letterSpacing:3 }}>{laptop.qr_code}</span>
+                            </div>
+                          )}
+                          {/* actions */}
+                          <div className="action-row" style={{ display:'flex', gap:7, flexWrap:'wrap', marginTop:10 }}>
+                            <ActionBtn variant="gold" onClick={() => handleRegenerateCode(laptop.id)} disabled={regenerating === laptop.id}>
+                              {regenerating === laptop.id ? '⏳ Regenerating…' : '🔄 Lost code?'}
+                            </ActionBtn>
+                            <ActionBtn variant="default" onClick={() => editingId === laptop.id ? cancelEdit() : startEdit(laptop)}>
+                              {editingId === laptop.id ? '✕ Cancel' : '✏️ Edit'}
+                            </ActionBtn>
+                            <ActionBtn variant="gold" onClick={() => openReportPanel(laptop,'LOST')} disabled={laptop.security_status === 'LOST'}>
+                              ⚠️ Lost
+                            </ActionBtn>
+                            <ActionBtn variant="danger" onClick={() => openReportPanel(laptop,'STOLEN')} disabled={laptop.security_status === 'STOLEN'}>
+                              🚨 Stolen
+                            </ActionBtn>
+                            {['LOST','STOLEN'].includes(laptop.security_status) && (
+                              <ActionBtn variant="success" onClick={() => openReportPanel(laptop,'FOUND')} className="found-btn">
+                                ✅ Found it!
+                              </ActionBtn>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* badges */}
+                        <div className="badge-group" style={{ display:'flex', flexDirection:'column', gap:6, alignItems:'flex-end', flexShrink:0 }}>
+                          <Chip {...vb} />
+                          <Chip
+                            bg={laptop.is_in_campus ? '#E8F5E9' : '#FFF0F0'}
+                            color={laptop.is_in_campus ? C.green : C.red}
+                            icon={laptop.is_in_campus ? '📍' : '🏠'}
+                            label={laptop.is_in_campus ? 'On Campus' : 'Off Campus'}
+                          />
+                          <Chip {...sb} />
+                        </div>
                       </div>
                     </div>
 
-                    <div style={styles.badgeGroup}>
-                      <span style={{ ...styles.badge, ...verificationBadgeStyle(laptop.verification_status) }}>
-                        {verificationBadgeLabel(laptop.verification_status)}
-                      </span>
-                      <span style={{
-                        ...styles.badge,
-                        backgroundColor: laptop.is_in_campus ? '#e6ffed' : '#fff0f0',
-                        color: laptop.is_in_campus ? '#2e7d32' : '#c62828',
-                      }}>
-                        {laptop.is_in_campus ? '✅ On Campus' : '🏠 Off Campus'}
-                      </span>
-                    </div>
+                    {/* ── report panel ── */}
+                    {reportPanel?.laptop.id === laptop.id && (
+                      <div style={{ background:'#FFFDF4', border:`1px solid ${C.gold}`, borderRadius:14, padding:'18px 20px', marginTop:4, animation:'fadeSlide .25s ease' }}>
+                        <div style={{ fontSize:15, fontWeight:800, color:C.navy, marginBottom:12, display:'flex', alignItems:'center', gap:8 }}>
+                          {reportPanel.status === 'FOUND' ? '✅ Found laptop? Notify admins' : `🚨 Report as ${reportPanel.status.toLowerCase()}`}
+                        </div>
+                        <form onSubmit={submitReportPanel}>
+                          <label style={ls.label}>{reportPanel.status === 'FOUND' ? 'Comment for admins' : 'Reason / description'}</label>
+                          <textarea style={{ ...ls.input, resize:'vertical', fontFamily:'inherit', marginBottom:12 }}
+                            value={reportComment} onChange={e => setReportComment(e.target.value)}
+                            placeholder={reportPanel.status === 'FOUND'
+                              ? 'Where was it found? Any details admins should verify?'
+                              : 'Describe what happened and where/when you last had it.'}
+                            rows={3} required />
+                          <div style={{ display:'flex', gap:10 }}>
+                            <button type="submit" disabled={reportSubmitting || !reportComment.trim()} className="btn-primary"
+                              style={{ ...ls.btnPrimary, width:'auto', padding:'10px 24px', fontSize:14, opacity: !reportComment.trim() ? .5 : 1 }}>
+                              {reportSubmitting ? 'Submitting…' : reportPanel.status === 'FOUND' ? 'Notify Admins' : 'Submit Report'}
+                            </button>
+                            <button type="button" onClick={closeReportPanel} style={{ padding:'10px 20px', background:'#fff', color:C.muted, border:`1px solid ${C.border}`, borderRadius:8, fontSize:14, cursor:'pointer', fontWeight:600 }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* ── edit panel ── */}
+                    {editingId === laptop.id && (
+                      <div style={{ background:'#F0F4FF', border:`1px solid #C7D2FE`, borderRadius:14, padding:'20px', marginTop:4, animation:'fadeSlide .25s ease' }}>
+                        <div style={{ background:C.goldLt, border:`1px solid ${C.gold}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:'#7A5C00', marginBottom:16, fontWeight:500 }}>
+                          ⚠️ Editing will reset verification to <strong>Pending</strong>. A guard will need to re-verify before campus entry is allowed.
+                        </div>
+                        {editError && <Alert type="error">{editError}</Alert>}
+                        <form onSubmit={handleEdit}>
+                          <div style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+                            {[['Serial Number','serialNumber'],['Brand','brand'],['Model','model']].map(([lbl,key]) => (
+                              <div key={key} style={{ flex:'1 1 160px' }}>
+                                <label style={ls.label}>{lbl}</label>
+                                <input style={ls.input} value={editForm[key]} onChange={e => setEditForm({...editForm,[key]:e.target.value})} required />
+                              </div>
+                            ))}
+                          </div>
+                          <PhotoUpload
+                            label="Replace Photo (optional)"
+                            preview={editPhotoPreview}
+                            onChange={(file) => { setEditForm({...editForm, photo:file}); setEditPhotoPreview(URL.createObjectURL(file)) }}
+                            onRemove={() => { setEditForm({...editForm, photo:null}); setEditPhotoPreview(null) }}
+                          />
+                          <div style={{ display:'flex', gap:10, marginTop:4 }}>
+                            <button type="submit" disabled={editLoading} className="btn-primary" style={{ ...ls.btnPrimary, width:'auto', padding:'10px 24px', fontSize:14 }}>
+                              {editLoading ? 'Saving…' : '💾 Save Changes'}
+                            </button>
+                            <button type="button" onClick={cancelEdit} style={{ padding:'10px 20px', background:'#fff', color:C.muted, border:`1px solid ${C.border}`, borderRadius:8, fontSize:14, cursor:'pointer', fontWeight:600 }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
                   </div>
-
-                  {/* ── Inline edit form ── */}
-                  {editingId === laptop.id && (
-                    <div style={styles.editPanel}>
-                      <p style={styles.editWarning}>
-                        ⚠️ Editing this laptop will reset its verification status to <strong>Pending</strong>. A guard will need to re-verify it before campus entry is allowed.
-                      </p>
-                      {editError && <div style={styles.error}>{editError}</div>}
-                      <form onSubmit={handleEdit}>
-                        <div style={styles.row}>
-                          <div style={{ ...styles.field, flex: 1 }}>
-                            <label style={styles.label}>Serial Number</label>
-                            <input style={styles.input} value={editForm.serialNumber}
-                              onChange={e => setEditForm({ ...editForm, serialNumber: e.target.value })} required />
-                          </div>
-                          <div style={{ ...styles.field, flex: 1 }}>
-                            <label style={styles.label}>Brand</label>
-                            <input style={styles.input} value={editForm.brand}
-                              onChange={e => setEditForm({ ...editForm, brand: e.target.value })} required />
-                          </div>
-                          <div style={{ ...styles.field, flex: 1 }}>
-                            <label style={styles.label}>Model</label>
-                            <input style={styles.input} value={editForm.model}
-                              onChange={e => setEditForm({ ...editForm, model: e.target.value })} required />
-                          </div>
-                        </div>
-                        <div style={styles.field}>
-                          <label style={styles.label}>Replace Photo (optional)</label>
-                          <input type="file" accept="image/*" style={styles.fileInput}
-                            onChange={(e) => {
-                              const file = e.target.files[0]
-                              if (file) { setEditForm({ ...editForm, photo: file }); setEditPhotoPreview(URL.createObjectURL(file)) }
-                            }} />
-                          {editPhotoPreview && (
-                            <div style={styles.photoPreview}>
-                              <img src={editPhotoPreview} alt="Preview" style={styles.previewImage} />
-                            </div>
-                          )}
-                        </div>
-                        <div style={styles.editActions}>
-                          <button type="submit" style={styles.saveBtn} disabled={editLoading}>
-                            {editLoading ? 'Saving...' : '💾 Save Changes'}
-                          </button>
-                          <button type="button" style={styles.cancelBtn} onClick={cancelEdit}>
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -316,51 +566,28 @@ export default function StudentDashboard() {
   )
 }
 
-const styles = {
-  container: { minHeight: '100vh', backgroundColor: '#f5f7fa', display: 'flex', flexDirection: 'column' },
-  main: { flex: 1, display: 'flex', flexDirection: 'column' },
-  content: { maxWidth: '900px', margin: '32px auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 },
-  card: { backgroundColor: '#fff', borderRadius: '16px', padding: '32px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' },
-  cardTitle: { margin: '0 0 24px', fontSize: '20px', fontWeight: '700', color: '#0033A0', borderLeft: '4px solid #FFD700', paddingLeft: '16px' },
-  error: { backgroundColor: '#fff0f0', color: '#e53e3e', padding: '12px 16px', borderRadius: '10px', marginBottom: '16px', fontSize: '14px' },
-  success: { backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '12px 16px', borderRadius: '10px', marginBottom: '20px', fontSize: '14px' },
-  field: { marginBottom: '16px' },
-  row: { display: 'flex', gap: '16px' },
-  label: { display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#333' },
-  input: { width: '100%', padding: '12px 16px', borderRadius: '10px', border: '2px solid #e0e0e0', fontSize: '14px', outline: 'none', boxSizing: 'border-box' },
-  fileInput: { width: '100%', padding: '10px', borderRadius: '10px', border: '2px solid #e0e0e0', fontSize: '14px' },
-  button: { width: '100%', padding: '14px', background: 'linear-gradient(135deg, #0033A0 0%, #002080 100%)', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', marginTop: '8px' },
-  qrContainer: { marginTop: '24px', textAlign: 'center', padding: '24px', backgroundColor: '#f8f9fa', borderRadius: '12px' },
-  qrText: { margin: '0 0 16px', fontSize: '14px', color: '#555' },
-  qrImage: { width: '200px', height: '200px', display: 'block', margin: '0 auto 16px' },
-  downloadBtn: { padding: '10px 24px', background: 'linear-gradient(135deg, #0033A0 0%, #002080 100%)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' },
-  empty: { color: '#888', fontSize: '14px', textAlign: 'center', padding: '40px 0' },
-  laptopItem: { display: 'flex', alignItems: 'center', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '12px', marginBottom: '8px' },
-  laptopPhotoWrap: { marginRight: '16px', flexShrink: 0 },
-  laptopPhoto: { width: '60px', height: '60px', objectFit: 'cover', borderRadius: '10px' },
-  noPhoto: { width: '60px', height: '60px', borderRadius: '10px', backgroundColor: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' },
-  laptopInfo: { display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 },
-  laptopName: { fontSize: '16px', fontWeight: '600', color: '#0033A0' },
-  laptopSerial: { fontSize: '13px', color: '#666' },
-  laptopCode: { fontSize: '12px', color: '#f57c00', fontFamily: 'monospace', fontWeight: 'bold' },
-  actionRow: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' },
-  regenBtn: { padding: '6px 12px', backgroundColor: '#fff8e1', color: '#e65100', border: '1px solid #FFD700', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
-  editBtn: { padding: '6px 12px', backgroundColor: '#e8f0fe', color: '#0033A0', border: '1px solid #0033A0', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
-  badgeGroup: { display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', flexShrink: 0 },
-  badge: { padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
-  regenBox: { display: 'flex', flexDirection: 'column', gap: '4px' },
-  miniQr: { width: '80px', height: '80px' },
-  dlLink: { fontSize: '11px', color: '#0033A0' },
-  numberBox: { marginTop: '20px', padding: '20px', backgroundColor: '#fff8e1', borderRadius: '12px', textAlign: 'center', border: '2px solid #FFD700' },
-  numberLabel: { fontSize: '13px', color: '#e65100', marginBottom: '12px', fontWeight: '500' },
-  bigNumber: { fontSize: '56px', fontWeight: 'bold', fontFamily: 'monospace', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', letterSpacing: '8px', color: '#0033A0', marginBottom: '10px' },
-  numberHint: { fontSize: '12px', color: '#666' },
-  photoPreview: { marginTop: '12px', textAlign: 'center' },
-  previewImage: { maxWidth: '200px', maxHeight: '200px', borderRadius: '10px', marginBottom: '8px' },
-  removePhotoBtn: { padding: '6px 14px', backgroundColor: '#ff4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' },
-  editPanel: { backgroundColor: '#f0f4ff', border: '1px solid #c5d3f5', borderRadius: '12px', padding: '20px', marginBottom: '12px' },
-  editWarning: { backgroundColor: '#fff8e1', border: '1px solid #FFD700', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#7a5c00', marginBottom: '16px' },
-  editActions: { display: 'flex', gap: '12px' },
-  saveBtn: { padding: '10px 24px', background: 'linear-gradient(135deg, #0033A0 0%, #002080 100%)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' },
-  cancelBtn: { padding: '10px 24px', backgroundColor: '#fff', color: '#666', border: '1px solid #ccc', borderRadius: '8px', fontSize: '14px', cursor: 'pointer' },
+/* ─── shared style objects ─── */
+const ls = {
+  card: {
+    background: C.white, borderRadius:18, padding:32,
+    boxShadow:'0 2px 16px rgba(0,51,160,.07)',
+    border:`1px solid ${C.border}`,
+  },
+  field: { marginBottom:16 },
+  label: { display:'block', marginBottom:7, fontSize:13, fontWeight:700, color:C.text, letterSpacing:.2 },
+  input: {
+    width:'100%', padding:'12px 16px', borderRadius:10,
+    border:`2px solid ${C.border}`, fontSize:14, color:C.text,
+    background:C.white, boxSizing:'border-box',
+    transition:'border-color .18s, box-shadow .18s',
+    fontFamily:"inherit",
+  },
+  btnPrimary: {
+    width:'100%', padding:14, marginTop:4,
+    background:`linear-gradient(135deg,${C.navy} 0%,${C.navyDk} 100%)`,
+    color:'#fff', border:'none', borderRadius:12,
+    fontSize:15, fontWeight:800, cursor:'pointer',
+    transition:'all .2s', letterSpacing:.3,
+    boxShadow:`0 4px 14px rgba(0,51,160,.25)`,
+  },
 }

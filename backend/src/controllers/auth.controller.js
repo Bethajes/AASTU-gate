@@ -211,14 +211,35 @@ export const setPassword = async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(password, 10)
-    const userId = crypto.randomUUID()
-
-    const userResult = await pool.query(
-      `INSERT INTO "User" ("id", "name", "email", "password", "studentId", "role", "isVerified", "verificationCode", "verificationCodeExpiry")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING "id", "name", "role"`,
-      [userId, student.name, tokenPayload.email, hashed, student_id, 'STUDENT', true, null, null]
+    const existingUser = await pool.query(
+      `SELECT "id" FROM "User" WHERE "studentId" = $1`,
+      [student_id]
     )
+
+    let userResult
+    if (existingUser.rows[0]) {
+      userResult = await pool.query(
+        `UPDATE "User"
+         SET "name" = $1,
+             "email" = $2,
+             "password" = $3,
+             "role" = 'STUDENT'::"Role",
+             "isVerified" = true,
+             "verificationCode" = NULL,
+             "verificationCodeExpiry" = NULL
+         WHERE "studentId" = $4
+         RETURNING "id", "name", "role"`,
+        [student.name, tokenPayload.email, hashed, student_id]
+      )
+    } else {
+      const userId = crypto.randomUUID()
+      userResult = await pool.query(
+        `INSERT INTO "User" ("id", "name", "email", "password", "studentId", "role", "isVerified", "verificationCode", "verificationCodeExpiry")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING "id", "name", "role"`,
+        [userId, student.name, tokenPayload.email, hashed, student_id, 'STUDENT', true, null, null]
+      )
+    }
 
     await pool.query(
       `UPDATE "Student" SET "isActivated" = true, "email" = $1, "pendingEmail" = NULL, "password_hash" = $2 WHERE "id" = $3`,

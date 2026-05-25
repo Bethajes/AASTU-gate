@@ -81,8 +81,8 @@ async function createGuestPass(guardId, overrides = {}) {
 
 afterEach(async () => {
   if (createdGuests.length) {
-    await pool.query(`DELETE FROM "GateLog" WHERE "guestPassId" = ANY($1::uuid[])`, [createdGuests])
-    await pool.query(`DELETE FROM "GuestPass" WHERE id = ANY($1::uuid[])`, [createdGuests])
+    await pool.query(`DELETE FROM "GateLog" WHERE "guestPassId" = ANY($1::text[])`, [createdGuests])
+    await pool.query(`DELETE FROM "GuestPass" WHERE id = ANY($1::text[])`, [createdGuests])
     createdGuests.length = 0
   }
   if (createdUsers.length) {

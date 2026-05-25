@@ -86,6 +86,15 @@ model Laptop {
   isInCampus   Boolean  @default(false)
   registeredAt DateTime @default(now())
   photoUrl     String?
+  registrantName  String?
+  registrantPhone String?
+  securityStatus  String    @default("ACTIVE")
+  reportReason    String?
+  reportedAt      DateTime?
+  reportedById    String?
+  recoveredAt     DateTime?
+  recoveredById   String?
+  recoveryNote    String?
 
   ownerId  String
   owner    User      @relation(fields: [ownerId], references: [id])
@@ -99,6 +108,7 @@ model Laptop {
 
   updateRequests LaptopUpdateRequest[]
   transferLogs   LaptopTransferLog[]
+  lostStolenAuditLogs LostStolenAuditLog[]
 }
 
 model GateLog {
@@ -178,4 +188,19 @@ model LaptopTransferLog {
   transferredAt   DateTime @default(now())
 
   @@map("laptop_transfer_logs")
+}
+
+model LostStolenAuditLog {
+  id        String   @id @default(uuid())
+  laptopId  String
+  laptop    Laptop   @relation(fields: [laptopId], references: [id], onDelete: Cascade)
+  action    String
+  fromStatus String?
+  toStatus  String
+  reason    String?
+  actorId   String
+  actorRole String?
+  createdAt DateTime @default(now())
+
+  @@map("lost_stolen_audit_logs")
 }

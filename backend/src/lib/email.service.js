@@ -1,18 +1,46 @@
 import nodemailer from 'nodemailer'
 
-function createTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false,
+let transporterCache = null
+
+function getSmtpConfig() {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com'
+  const port = parseInt(process.env.SMTP_PORT || '587', 10)
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+
+  if (!user || !pass) {
+    throw new Error('SMTP_USER and SMTP_PASS must be configured for email delivery')
+  }
+
+  const secure = process.env.SMTP_SECURE === 'true' || port === 465
+
+  return {
+    host,
+    port,
+    secure,
+    auth: { user, pass },
     connectionTimeout: 10000, // 10 seconds
     greetingTimeout: 10000,
     socketTimeout: 10000,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  })
+    ...(secure ? {} : { requireTLS: true }),
+  }
+}
+
+async function createTransporter() {
+  const transporter = nodemailer.createTransport(getSmtpConfig())
+  await transporter.verify()
+  return transporter
+}
+
+async function getTransporter() {
+  if (!transporterCache) {
+    transporterCache = await createTransporter()
+  }
+  return transporterCache
+}
+
+function formatFromAddress() {
+  return `"AASTU ICT Security" <${process.env.SMTP_USER}>`
 }
 
 /**
@@ -24,10 +52,10 @@ function createTransporter() {
  * Used during the student account activation flow.
  */
 export async function sendOtpEmail(to, code) {
-  const transporter = createTransporter()
+  const transporter = await getTransporter()
 
   await transporter.sendMail({
-    from: `"AASTU ICT Security" <${process.env.SMTP_USER}>`,
+    from: formatFromAddress(),
     to,
     subject: 'Activate your AASTU account',
     text: `Your activation code is: ${code}\n\nThis code expires in 5 minutes.`,
@@ -43,10 +71,10 @@ export async function sendOtpEmail(to, code) {
 }
 
 export async function sendVerificationEmail(to, code) {
-  const transporter = createTransporter()
+  const transporter = await getTransporter()
 
   await transporter.sendMail({
-    from: `"AASTU ICT Security" <${process.env.SMTP_USER}>`,
+    from: formatFromAddress(),
     to,
     subject: 'Your AASTU password reset code',
     text: `Your password reset code is: ${code}\n\nThis code expires in 15 minutes.`,

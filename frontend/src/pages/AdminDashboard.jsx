@@ -24,6 +24,7 @@ const TABS = [
   { id: 'overview',  label: 'Overview',    icon: '▣' },
   { id: 'students',  label: 'Students',    icon: '◎' },
   { id: 'laptops',   label: 'Laptops',     icon: '▤' },
+  { id: 'lostStolen', label: 'Lost & Stolen', icon: '!' },
   { id: 'logs',      label: 'Gate Logs',   icon: '▦' },
   { id: 'analytics', label: 'Analytics',   icon: '▲' },
 ]
@@ -35,18 +36,21 @@ const PAGE_SIZE = 20
 function useDashboardData() {
   const [laptops, setLaptops] = useState([])
   const [logs, setLogs]       = useState([])
+  const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
 
   const fetchAllData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [laptopsRes, logsRes] = await Promise.all([
+      const [laptopsRes, logsRes, reportsRes] = await Promise.all([
         API.get('/laptops/all'),
         API.get('/gate/logs'),
+        API.get('/laptops/lost-stolen-reports'),
       ])
       setLaptops(laptopsRes.data)
       setLogs(logsRes.data)
+      setReports(reportsRes.data)
     } catch (err) {
       setError(err?.response?.data?.message ?? 'Failed to load dashboard data.')
     } finally {
@@ -55,7 +59,7 @@ function useDashboardData() {
   }, [])
 
   useEffect(() => { fetchAllData() }, [fetchAllData])
-  return { laptops, logs, loading, error, refetch: fetchAllData }
+  return { laptops, logs, reports, loading, error, refetch: fetchAllData }
 }
 
 // ─── Pure Helpers ─────────────────────────────────────────────────────────────
@@ -111,18 +115,32 @@ function buildChartData(logs, laptops) {
   return { hourly, daily, weekly, statusDistribution, topStudents }
 }
 
-function exportToCSV(logs) {
-  const header = ['Date', 'Time', 'Brand', 'Serial', 'Scan Type', 'Scanned By']
-  const rows = logs.map(log => [
-    new Date(log.scanned_at).toLocaleDateString(),
-    new Date(log.scanned_at).toLocaleTimeString(),
-    log.brand, log.serial_number, log.scan_type, log.scanned_by_name,
-  ])
-  const csv  = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+// Export laptops to CSV (with student ID)
+function csvEscape(value) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`
+}
+
+function downloadCSV(filename, header, rows) {
+  const csv = [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
   const url  = URL.createObjectURL(blob)
-  const a    = Object.assign(document.createElement('a'), { href: url, download: `gate-logs-${new Date().toISOString().split('T')[0]}.csv` })
+  const a    = Object.assign(document.createElement('a'), { href: url, download: filename })
   a.click(); URL.revokeObjectURL(url)
+}
+
+function exportLaptopsToCSV(laptops) {
+  const header = ['Owner', 'Student ID', 'Brand', 'Model', 'Serial Number', 'Campus Status', 'Security Status', 'Registered']
+  const rows = laptops.map(l => [
+    l.owner_name,
+    l.student_id || '',
+    l.brand,
+    l.model,
+    l.serial_number,
+    l.is_in_campus ? 'On Campus' : 'Off Campus',
+    l.security_status || 'ACTIVE',
+    l.registered_at ? new Date(l.registered_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+  ])
+  downloadCSV(`laptops-${new Date().toISOString().split('T')[0]}.csv`, header, rows)
 }
 
 function todayISO() { return new Date().toISOString().split('T')[0] }
@@ -383,6 +401,8 @@ const globalCSS = `
   table.data-table tbody tr:hover { background: var(--slate-50); }
   table.data-table tbody tr:last-child { border-bottom: none; }
   table.data-table td { padding: 12px 14px; color: var(--slate-700); vertical-align: middle; }
+  body.admin-dense table.data-table td { padding: 8px 10px; }
+  body.admin-dense table.data-table th { padding: 8px 10px; }
 
   /* Badges */
   .badge {
@@ -393,6 +413,7 @@ const globalCSS = `
   .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
   .badge-green  { background: var(--green-100); color: #065f46; }
   .badge-red    { background: var(--red-100);   color: #9f1239; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
   .badge-blue   { background: #dbeafe; color: #1e40af; }
   .badge-amber  { background: var(--amber-100); color: #92400e; }
   .badge-slate  { background: var(--slate-100); color: var(--slate-600); }
@@ -559,6 +580,7 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }) {
     { id: 'overview',  label: 'Overview',      icon: '⊞' },
     { id: 'students',  label: 'Students',       icon: '◎' },
     { id: 'laptops',   label: 'Laptops',        icon: '▤' },
+    { id: 'lostStolen', label: 'Lost & Stolen', icon: '!' },
     { id: 'logs',      label: 'Gate Logs',      icon: '▦' },
     { id: 'analytics', label: 'Analytics',      icon: '▲' },
   ]
@@ -593,7 +615,12 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }) {
           { id: 'reports',  label: 'Reports',  icon: '⊟' },
           { id: 'settings', label: 'Settings', icon: '⊛' },
         ].map(item => (
-          <div key={item.id} className="sidebar-item" title={collapsed ? item.label : undefined}>
+          <div
+            key={item.id}
+            className={`sidebar-item${activeTab === item.id ? ' active' : ''}`}
+            onClick={() => onTab(item.id)}
+            title={collapsed ? item.label : undefined}
+          >
             <span className="sidebar-icon">{item.icon}</span>
             {!collapsed && <span>{item.label}</span>}
           </div>
@@ -609,10 +636,28 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }) {
 }
 
 function Topbar({ user, onLogout, activeTab, collapsed, onChangePassword }) {
-  const tabLabels = { overview: 'Overview', students: 'Students', laptops: 'Laptops', logs: 'Gate Logs', analytics: 'Analytics' }
+  const tabLabels = { overview: 'Overview', students: 'Students', laptops: 'Laptops', lostStolen: 'Lost & Stolen', logs: 'Gate Logs', analytics: 'Analytics', reports: 'Reports', settings: 'Settings' }
   const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'AD'
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
   const dropdownRef = useRef(null)
+  const notificationsRef = useRef(null)
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const res = await API.get('/gate/notifications')
+      setNotifications(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      setNotifications([])
+    }
+  }, [])
+
+  useEffect(() => {
+    loadNotifications()
+    const interval = setInterval(loadNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [loadNotifications])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -620,10 +665,28 @@ function Topbar({ user, onLogout, activeTab, collapsed, onChangePassword }) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false)
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target)) {
+        setNotificationsOpen(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  const toggleNotifications = async () => {
+    const next = !notificationsOpen
+    setNotificationsOpen(next)
+    setDropdownOpen(false)
+    if (next) {
+      await loadNotifications()
+      try {
+        await API.post('/gate/notifications/mark-read')
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+      } catch { /* ignore */ }
+    }
+  }
+
+  const unreadCount = notifications.filter(n => !n.isRead).length
 
   return (
     <header className={`aastu-topbar${collapsed ? ' sidebar-collapsed' : ''}`}>
@@ -635,10 +698,33 @@ function Topbar({ user, onLogout, activeTab, collapsed, onChangePassword }) {
         </div>
       </div>
       <div className="topbar-right">
-        <button className="topbar-btn" title="Notifications" style={{ fontSize: 18 }}>
-          🔔
-          <span className="topbar-badge" />
-        </button>
+        <div ref={notificationsRef} style={{ position: 'relative' }}>
+          <button className="topbar-btn" title="Notifications" style={{ fontSize: 18 }} onClick={toggleNotifications}>
+            🔔
+            {unreadCount > 0 && <span className="topbar-badge" />}
+          </button>
+          {notificationsOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              background: '#fff', border: '1px solid #e2e8f0',
+              borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+              width: 340, maxHeight: 420, overflowY: 'auto', zIndex: 220,
+            }}>
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                Notifications
+              </div>
+              {notifications.length === 0 ? (
+                <div style={{ padding: 16, fontSize: 13, color: '#94a3b8' }}>No notifications yet.</div>
+              ) : notifications.map(n => (
+                <div key={n.id} style={{ padding: '12px 14px', borderBottom: '1px solid #f8fafc', background: n.isRead ? '#fff' : '#f8fafc' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: n.type === 'LAPTOP_STOLEN' ? '#9f1239' : '#0f172a' }}>{n.title}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4, lineHeight: 1.35 }}>{n.body}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>{new Date(n.createdAt).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <button className="topbar-btn" title="Help" style={{ fontSize: 16 }}>?</button>
 
         {/* Profile dropdown */}
@@ -1156,7 +1242,7 @@ function LaptopsTab({ laptops, onExport }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  {['Owner', 'Student ID', 'Brand', 'Model', 'Serial Number', 'Status', 'Registered'].map(h => (
+                  {['Owner', 'Student ID', 'Brand', 'Model', 'Serial Number', 'Campus', 'Security', 'Registered'].map(h => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
@@ -1182,6 +1268,7 @@ function LaptopsTab({ laptops, onExport }) {
                           : <span className="badge badge-red"><span className="badge-dot"   style={{ background: '#f43f5e' }} />Off Campus</span>
                         }
                       </td>
+                      <td><span className={securityBadgeClass(laptop.security_status || 'ACTIVE')}>{laptop.security_status || 'ACTIVE'}</span></td>
                       <td style={{ color: '#64748b', fontSize: 12 }}>{new Date(laptop.registered_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                     </tr>
                   )
@@ -1191,6 +1278,132 @@ function LaptopsTab({ laptops, onExport }) {
           </div>
           <PaginationBar page={page} totalPages={totalPages} total={filtered.length} onPage={setPage} />
         </>
+      )}
+    </div>
+  )
+}
+
+function securityBadgeClass(status) {
+  if (status === 'STOLEN') return 'badge badge-red'
+  if (status === 'LOST') return 'badge badge-yellow'
+  return 'badge badge-green'
+}
+
+function LostStolenReportsTab({ reports, onRecovered }) {
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [timePreset, setTimePreset] = useState('ALL')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [recoveringId, setRecoveringId] = useState(null)
+  const [error, setError] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    const timeFiltered = applyTimeFilter(reports, 'reported_at', timePreset, dateFrom, dateTo)
+    return timeFiltered.filter(r => {
+      const matchStatus = statusFilter === 'ALL' || r.security_status === statusFilter
+      const matchSearch = !q ||
+        r.owner_name?.toLowerCase().includes(q) ||
+        r.student_id?.toLowerCase().includes(q) ||
+        r.brand?.toLowerCase().includes(q) ||
+        r.model?.toLowerCase().includes(q) ||
+        r.serial_number?.toLowerCase().includes(q) ||
+        r.report_reason?.toLowerCase().includes(q)
+      return matchStatus && matchSearch
+    })
+  }, [reports, search, statusFilter, timePreset, dateFrom, dateTo])
+
+  const recover = async (report) => {
+    const note = window.prompt(`Recovery note for ${report.brand} ${report.model}`)
+    if (note === null) return
+    setRecoveringId(report.id)
+    setError('')
+    try {
+      await API.post(`/laptops/${report.id}/recover`, { note: note.trim() })
+      onRecovered()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to recover laptop')
+    } finally {
+      setRecoveringId(null)
+    }
+  }
+
+  return (
+    <div className="content-card fade-up">
+      <div className="card-header">
+        <div className="card-header-left">
+          <div className="card-icon">!</div>
+          <div>
+            <div className="card-title">Lost & Stolen Reports</div>
+            <div className="card-subtitle">{filtered.length} of {reports.length} reports shown</div>
+          </div>
+        </div>
+      </div>
+
+      {error && <div className="error-banner" style={{ margin: 16 }}>{error}</div>}
+
+      <div style={{ padding: '12px 22px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="filter-bar">
+          <div className="search-input-wrap">
+            <span className="search-icon">🔍</span>
+            <input className="search-input" placeholder="Search owner, ID, serial, reason…" value={search}
+              onChange={e => setSearch(e.target.value)} />
+          </div>
+          {['ALL', 'LOST', 'STOLEN', 'ACTIVE'].map(v => (
+            <button key={v} className={`filter-chip${statusFilter === v ? ' active' : ''}`}
+              onClick={() => setStatusFilter(v)}>
+              {v === 'ALL' ? 'All Reports' : v}
+            </button>
+          ))}
+        </div>
+        <TimeRangeFilter
+          preset={timePreset}
+          onPreset={setTimePreset}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFrom={setDateFrom}
+          onDateTo={setDateTo}
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '52px 0', color: '#94a3b8', fontSize: 14 }}>
+          No lost or stolen reports match this view.
+        </div>
+      ) : (
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                {['Status', 'Owner', 'Student ID', 'Laptop', 'Serial', 'Reason', 'Reported', 'Recovered', 'Action'].map(h => <th key={h}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(report => (
+                <tr key={report.id}>
+                  <td><span className={securityBadgeClass(report.security_status)}>{report.security_status}</span></td>
+                  <td>{report.owner_name}</td>
+                  <td><span className="mono">{report.student_id || '—'}</span></td>
+                  <td>{report.brand} {report.model}</td>
+                  <td><span className="mono">{report.serial_number}</span></td>
+                  <td style={{ maxWidth: 260, whiteSpace: 'normal', color: '#64748b' }}>{report.report_reason || '—'}</td>
+                  <td style={{ fontSize: 12, color: '#64748b' }}>{report.reported_at ? new Date(report.reported_at).toLocaleString() : '—'}</td>
+                  <td style={{ fontSize: 12, color: '#64748b' }}>{report.recovered_at ? new Date(report.recovered_at).toLocaleString() : '—'}</td>
+                  <td>
+                    {report.security_status === 'ACTIVE' ? (
+                      <span className="badge badge-green">Recovered</span>
+                    ) : (
+                      <button className="btn btn-sm btn-outline" disabled={recoveringId === report.id} onClick={() => recover(report)}>
+                        {recoveringId === report.id ? 'Saving…' : 'Mark Active'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
@@ -1370,6 +1583,182 @@ function AnalyticsTab({ chartData, logs }) {
   )
 }
 
+function ReportsTab({ laptops, logs, reports, chartData }) {
+  const today = todayISO()
+  const exportLogs = () => downloadCSV(
+    `gate-logs-${today}.csv`,
+    ['Date', 'Event', 'Type', 'Owner/Guest', 'Brand', 'Serial', 'Guard'],
+    logs.map(l => [
+      l.scanned_at ? new Date(l.scanned_at).toLocaleString() : '',
+      l.action || l.scan_type,
+      l.type || 'laptop',
+      l.type === 'guest' ? l.guest_name : l.owner_name,
+      l.type === 'guest' ? l.guest_brand : l.brand,
+      l.type === 'guest' ? l.guest_serial : l.serial_number,
+      l.scanned_by_name,
+    ])
+  )
+
+  const exportLostStolen = () => downloadCSV(
+    `lost-stolen-reports-${today}.csv`,
+    ['Status', 'Owner', 'Student ID', 'Laptop', 'Serial', 'Reason', 'Reported', 'Recovered'],
+    reports.map(r => [
+      r.security_status,
+      r.owner_name,
+      r.student_id,
+      `${r.brand} ${r.model}`,
+      r.serial_number,
+      r.report_reason,
+      r.reported_at ? new Date(r.reported_at).toLocaleString() : '',
+      r.recovered_at ? new Date(r.recovered_at).toLocaleString() : '',
+    ])
+  )
+
+  const exportSummary = () => {
+    const active = laptops.filter(l => (l.security_status || 'ACTIVE') === 'ACTIVE').length
+    const lost = laptops.filter(l => l.security_status === 'LOST').length
+    const stolen = laptops.filter(l => l.security_status === 'STOLEN').length
+    downloadCSV(
+      `security-summary-${today}.csv`,
+      ['Metric', 'Value'],
+      [
+        ['Registered Laptops', laptops.length],
+        ['On Campus Now', laptops.filter(l => l.is_in_campus).length],
+        ['Gate Logs', logs.length],
+        ['Lost Reports', lost],
+        ['Stolen Reports', stolen],
+        ['Active Devices', active],
+        ['Scans Last 7 Days', chartData?.daily?.reduce((sum, d) => sum + d.scans, 0) || 0],
+      ]
+    )
+  }
+
+  const cards = [
+    { title: 'Laptop Registry', body: 'Export all registered laptops with owner, campus, and security status.', action: () => exportLaptopsToCSV(laptops), button: 'Export Laptops CSV' },
+    { title: 'Gate Activity', body: 'Export entry and exit activity with guard and device details.', action: exportLogs, button: 'Export Gate Logs CSV' },
+    { title: 'Lost & Stolen', body: 'Export the report queue including recovered devices and reasons.', action: exportLostStolen, button: 'Export Reports CSV' },
+    { title: 'Security Summary', body: 'Export headline totals for daily reporting and handover notes.', action: exportSummary, button: 'Export Summary CSV' },
+  ]
+
+  return (
+    <div className="content-card fade-up">
+      <div className="card-header">
+        <div className="card-header-left">
+          <div className="card-icon">⊟</div>
+          <div>
+            <div className="card-title">Reports</div>
+            <div className="card-subtitle">Generate operational exports from current dashboard data</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: 22, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 16 }}>
+        {cards.map(card => (
+          <div key={card.title} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, background: '#fff' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>{card.title}</div>
+            <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.45, minHeight: 56 }}>{card.body}</div>
+            <button className="btn btn-outline btn-sm" style={{ marginTop: 16 }} onClick={card.action}>
+              {card.button}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SettingsTab({ user, sidebarCollapsed, onToggleSidebar, onRefresh, onChangePassword, onLogout }) {
+  const [saved, setSaved] = useState('')
+  const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem('adminAutoRefresh') === 'true')
+  const [denseTables, setDenseTables] = useState(() => localStorage.getItem('adminDenseTables') === 'true')
+
+  useEffect(() => {
+    document.body.classList.toggle('admin-dense', denseTables)
+    return () => document.body.classList.remove('admin-dense')
+  }, [denseTables])
+
+  useEffect(() => {
+    if (!autoRefresh) return undefined
+    const interval = setInterval(onRefresh, 60000)
+    return () => clearInterval(interval)
+  }, [autoRefresh, onRefresh])
+
+  const saveToggle = (key, value, setter) => {
+    setter(value)
+    localStorage.setItem(key, String(value))
+    setSaved('Settings saved on this browser.')
+    window.setTimeout(() => setSaved(''), 2200)
+  }
+
+  const clearLocalSettings = () => {
+    localStorage.removeItem('adminAutoRefresh')
+    localStorage.removeItem('adminDenseTables')
+    setAutoRefresh(false)
+    setDenseTables(false)
+    setSaved('Local admin settings cleared.')
+    window.setTimeout(() => setSaved(''), 2200)
+  }
+
+  return (
+    <div className="content-card fade-up">
+      <div className="card-header">
+        <div className="card-header-left">
+          <div className="card-icon">⊛</div>
+          <div>
+            <div className="card-title">Settings</div>
+            <div className="card-subtitle">Admin account and dashboard preferences</div>
+          </div>
+        </div>
+      </div>
+
+      {saved && (
+        <div style={{ margin: 18, background: '#f0fff4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
+          {saved}
+        </div>
+      )}
+
+      <div style={{ padding: 22, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18 }}>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 18 }}>
+          <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Account</div>
+          <div style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>
+            Signed in as <strong>{user?.name || 'Admin'}</strong><br />
+            {user?.email || 'No email available'}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-sm btn-primary" onClick={onChangePassword}>Change Password</button>
+            <button className="btn btn-sm btn-outline" onClick={onLogout}>Sign Out</button>
+          </div>
+        </div>
+
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 18 }}>
+          <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Dashboard</div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#334155', marginBottom: 12 }}>
+            <input type="checkbox" checked={autoRefresh} onChange={e => saveToggle('adminAutoRefresh', e.target.checked, setAutoRefresh)} />
+            Refresh dashboard data every 60 seconds
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#334155', marginBottom: 14 }}>
+            <input type="checkbox" checked={denseTables} onChange={e => saveToggle('adminDenseTables', e.target.checked, setDenseTables)} />
+            Prefer compact table view
+          </label>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-sm btn-outline" onClick={onRefresh}>Refresh Data</button>
+            <button className="btn btn-sm btn-outline" onClick={onToggleSidebar}>
+              {sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 18 }}>
+          <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Local Preferences</div>
+          <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.45, marginBottom: 14 }}>
+            These preferences are stored only in this browser and do not affect other admins.
+          </div>
+          <button className="btn btn-sm btn-outline" onClick={clearLocalSettings}>Clear Local Settings</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
 function PaginationBar({ page, totalPages, total, onPage }) {
@@ -1449,7 +1838,7 @@ export default function AdminDashboard() {
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
   const [studentsKey, setStudentsKey]     = useState(0)
 
-  const { laptops, logs, loading, error, refetch } = useDashboardData()
+  const { laptops, logs, reports, loading, error, refetch } = useDashboardData()
 
   const chartData = useMemo(
     () => (laptops.length || logs.length) ? buildChartData(logs, laptops) : null,
@@ -1457,14 +1846,18 @@ export default function AdminDashboard() {
   )
 
   const handleLogout = () => { logout(); navigate('/login') }
-  const handleExport = useCallback(() => exportToCSV(logs), [logs])
+  // Export laptops for the laptops tab
+  const handleExportLaptops = useCallback(() => exportLaptopsToCSV(laptops), [laptops])
 
   const tabTitles = {
     overview:  { title: 'System Overview', subtitle: `Real-time insights — ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}` },
     students:  { title: 'Student Registry', subtitle: 'Manage enrolled students and their device registrations' },
     laptops:   { title: 'Device Registry', subtitle: 'All registered laptops and campus tracking status' },
+    lostStolen: { title: 'Lost & Stolen Reports', subtitle: 'Review reported devices and mark recovered laptops active' },
     logs:      { title: 'Gate Event Log', subtitle: 'Full audit trail of all entry and exit events' },
     analytics: { title: 'Analytics & Reports', subtitle: 'Statistical analysis and usage patterns' },
+    reports:   { title: 'Reports', subtitle: 'Export operational reports and dashboard summaries' },
+    settings:  { title: 'Settings', subtitle: 'Manage admin preferences and account actions' },
   }
 
   const current = tabTitles[activeTab] || tabTitles.overview
@@ -1510,9 +1903,21 @@ export default function AdminDashboard() {
         {loading ? <LoadingSkeleton /> : (
           <>
             {activeTab === 'overview'  && chartData && <OverviewTab chartData={chartData} />}
-            {activeTab === 'laptops'   && <LaptopsTab laptops={laptops} onExport={handleExport} />}
+            {activeTab === 'laptops'   && <LaptopsTab laptops={laptops} onExport={handleExportLaptops} />}
+            {activeTab === 'lostStolen' && <LostStolenReportsTab reports={reports} onRecovered={refetch} />}
             {activeTab === 'logs'      && <LogsTab logs={logs} />}
             {activeTab === 'analytics' && chartData && <AnalyticsTab chartData={chartData} logs={logs} />}
+            {activeTab === 'reports'   && <ReportsTab laptops={laptops} logs={logs} reports={reports} chartData={chartData} />}
+            {activeTab === 'settings'  && (
+              <SettingsTab
+                user={user}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed(c => !c)}
+                onRefresh={refetch}
+                onChangePassword={() => setShowChangePasswordModal(true)}
+                onLogout={handleLogout}
+              />
+            )}
             {activeTab === 'students'  && (
               <div className="content-card fade-up">
                 <div className="card-header">
