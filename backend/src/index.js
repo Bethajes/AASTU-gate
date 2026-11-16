@@ -15,12 +15,28 @@ const __dirname = path.dirname(__filename)
 dotenv.config()
 
 const app = express()
+
+const defaultOrigins = ['https://aastu-gate.vercel.app']
+const envOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+const allowedOrigins = new Set([...defaultOrigins, ...envOrigins])
+
+// Allow any local development origin (Vite may switch between 5173, 5174, ...).
+const isLocalDevOrigin = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173',
-      'https://aastu-gate.vercel.app'
-    ],
+    origin(origin, callback) {
+      // Requests without an Origin header (curl, server-to-server) are allowed.
+      if (!origin || allowedOrigins.has(origin) || isLocalDevOrigin(origin)) {
+        return callback(null, true)
+      }
+      return callback(new Error(`Origin not allowed by CORS: ${origin}`))
+    },
     credentials: true
   })
 )

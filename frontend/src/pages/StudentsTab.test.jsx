@@ -18,6 +18,10 @@ const safeStringArb = fc
   .string({ minLength: 1, maxLength: 30 })
   .filter(s => s.trim().length > 0 && s === s.trim())
 
+// Testing Library collapses runs of whitespace in element text before
+// comparing, so expectations must be normalized the same way.
+const normalizeText = (s) => s.replace(/\s+/g, ' ').trim()
+
 const studentArb = fc.record({
   id:          safeStringArb,
   username:    safeStringArb,
@@ -62,10 +66,10 @@ describe('StudentsTab', () => {
           await waitFor(() => {
             // Every student's id, username, name, department, and activation status must appear
             for (const s of students) {
-              expect(screen.getAllByText(s.student_id || s.id).length).toBeGreaterThan(0)
-              expect(screen.getAllByText(s.username).length).toBeGreaterThan(0)
-              expect(screen.getAllByText(s.full_name || s.name).length).toBeGreaterThan(0)
-              expect(screen.getAllByText(s.department).length).toBeGreaterThan(0)
+              expect(screen.getAllByText(normalizeText(s.student_id || s.id)).length).toBeGreaterThan(0)
+              expect(screen.getAllByText(normalizeText(s.username)).length).toBeGreaterThan(0)
+              expect(screen.getAllByText(normalizeText(s.full_name || s.name)).length).toBeGreaterThan(0)
+              expect(screen.getAllByText(normalizeText(s.department)).length).toBeGreaterThan(0)
             }
           })
 

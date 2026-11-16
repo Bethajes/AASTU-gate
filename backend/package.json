@@ -3,14 +3,18 @@
   "version": "1.0.0",
   "description": "AASTU Laptop System Backend",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=20.19"
+  },
   "type": "module",
   "scripts": {
-  "dev": "nodemon src/index.js",
-  "start": "node src/index.js",
-  "test": "vitest run",
-  "build": "npx prisma generate",
-  "postinstall": "npx prisma generate"
-},
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "seed": "node src/seed-accounts.js",
+    "test": "vitest run",
+    "build": "npx prisma generate",
+    "postinstall": "npx prisma generate"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

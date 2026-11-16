@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import API from '../api/axios'
 import AASTUHeader from '../components/AASTUHeader'
 import AASTUFooter from '../components/AASTUFooter'
+import { buildPhotoUrl } from '../utils/photoUrl'
 
 export default function GuardScanner() {
   const [qrCode, setQrCode] = useState('')
@@ -44,7 +45,7 @@ export default function GuardScanner() {
       const res = await API.get(`/gate/lookup?code=${qrCode}`)
       setLaptopDetails(res.data)
       setError('')
-    } catch (err) {
+    } catch {
       setLaptopDetails(null)
       setError('❌ No laptop found with this code')
     } finally {
@@ -148,7 +149,7 @@ export default function GuardScanner() {
                   {laptopDetails.photo_url ? (
                     <div style={styles.photoContainer}>
                       <img 
-                        src={`http://localhost:5001${laptopDetails.photo_url}`} 
+                        src={buildPhotoUrl(laptopDetails.photo_url)} 
                         alt={laptopDetails.brand}
                         style={styles.laptopPhotoLarge}
                       />

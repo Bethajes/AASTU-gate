@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import API from '../api/axios'
 import AASTUHeader from '../components/AASTUHeader'
 import AASTUFooter from '../components/AASTUFooter'
-
-const BASE_URL = 'http://localhost:5001'
+import { buildPhotoUrl } from '../utils/photoUrl'
 
 /* ─── brand tokens ─── */
 const C = {
@@ -426,7 +425,7 @@ export default function StudentDashboard() {
                         {/* photo */}
                         <div style={{ flexShrink:0 }}>
                           {laptop.photo_url
-                            ? <img src={`${BASE_URL}${laptop.photo_url}`} alt={laptop.brand}
+                            ? <img src={buildPhotoUrl(laptop.photo_url)} alt={laptop.brand}
                                 style={{ width:72, height:72, objectFit:'cover', borderRadius:12, border:`2px solid ${C.border}` }} />
                             : <div style={{ width:72, height:72, borderRadius:12, background:C.surface, border:`2px dashed ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>💻</div>
                           }

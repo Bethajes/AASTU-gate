@@ -1,17 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
+import { render, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import * as fc from 'fast-check'
 import Activate from './Activate'
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
+const mockLogin = vi.fn()
+
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ login: vi.fn() }),
+  useAuth: () => ({ login: mockLogin }),
 }))
 
 vi.mock('../api/axios', () => ({
-  default: { post: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn() },
 }))
 
 vi.mock('../components/AASTULogo', () => ({
@@ -24,6 +26,11 @@ vi.mock('../components/AuthPageLayout', () => ({
 
 import API from '../api/axios'
 
+const STUDENT_ID = 'ETS023/15'
+const EMAIL = 'test.student@aastustudent.edu.et'
+const ID_PLACEHOLDER = /e\.g\. ETS023\/15/i
+const EMAIL_PLACEHOLDER = /firstname\.fathername@aastustudent\(s\)\.edu\.et/i
+
 function renderActivate() {
   return render(
     <MemoryRouter>
@@ -32,22 +39,62 @@ function renderActivate() {
   ).container
 }
 
-// Submit Step 1 with the given studentId
-function submitStep1(container, studentId) {
+// Step 1: student ID + institutional email -> POST /auth/send-otp
+// The submit button stays disabled until the debounced availability probe settles.
+async function submitStep1(container) {
   const view = within(container)
-  fireEvent.change(view.getByPlaceholderText(/e\.g\. ETS023\/15/i), {
-    target: { value: studentId },
+  fireEvent.change(view.getByPlaceholderText(ID_PLACEHOLDER), {
+    target: { value: STUDENT_ID },
   })
-  fireEvent.click(view.getByRole('button', { name: /continue/i }))
+  fireEvent.change(view.getByPlaceholderText(EMAIL_PLACEHOLDER), {
+    target: { value: EMAIL },
+  })
+  await waitFor(() => expect(API.get).toHaveBeenCalledWith('/auth/check-email', {
+    params: { email: EMAIL },
+  }))
+  await waitFor(() =>
+    expect(view.getByRole('button', { name: /send verification code/i })).not.toBeDisabled()
+  )
+  await act(async () => {
+    fireEvent.click(view.getByRole('button', { name: /send verification code/i }))
+  })
 }
 
-beforeEach(() => vi.clearAllMocks())
+// Step 2: OTP -> POST /auth/verify-otp -> student identity
+async function submitOtp(container, code = '123456') {
+  const view = within(container)
+  await waitFor(() => view.getByPlaceholderText('123456'))
+  fireEvent.change(view.getByPlaceholderText('123456'), { target: { value: code } })
+  await act(async () => {
+    fireEvent.click(view.getByRole('button', { name: /^submit$/i }))
+  })
+}
+
+const verifyOtpResponse = {
+  otpToken: 'mock-token-123',
+  name: 'Test Student',
+  department: 'CS',
+  username: 'ETS02315',
+  photo: null,
+}
+
+// Testing Library collapses runs of whitespace when matching element text, so
+// the expected string has to be normalized the same way.
+const normalizeText = (s) => s.replace(/\s+/g, ' ').trim()
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  // The email-availability probe gates the submit button; report the
+  // institutional address as available.
+  API.get.mockResolvedValue({ data: { available: true } })
+})
+
 afterEach(() => cleanup())
 
-// ── Property 16: UI displays student identity after valid student ID submission ──
-// **Feature: preloaded-student-activation, Property 16: UI displays student identity after valid username + student ID submission**
+// ── Property 16: UI displays student identity after successful OTP verification ─
+// **Feature: preloaded-student-activation, Property 16: UI displays student identity after successful OTP verification**
 // **Validates: Requirements 5.2**
-describe('Property 16: UI displays student identity after valid student ID submission', () => {
+describe('Property 16: UI displays student identity after successful OTP verification', () => {
   it('renders student name and photo area for any valid student record returned by the backend', { timeout: 60000 }, async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -60,14 +107,23 @@ describe('Property 16: UI displays student identity after valid student ID submi
         async (student) => {
           cleanup()
           vi.clearAllMocks()
-          API.post.mockResolvedValueOnce({ data: student })
+          API.get.mockResolvedValue({ data: { available: true } })
+          API.post
+            .mockResolvedValueOnce({ data: { message: 'OTP sent' } })
+            .mockResolvedValueOnce({ data: { ...verifyOtpResponse, ...student } })
 
           const container = renderActivate()
 
-          submitStep1(container, 'ETS023/15')
+          await submitStep1(container)
+          await waitFor(() => expect(API.post).toHaveBeenCalledWith('/auth/send-otp', {
+            student_id: STUDENT_ID,
+            email: EMAIL,
+          }))
+
+          submitOtp(container)
 
           await waitFor(() => {
-            const nameElements = within(container).getAllByText(student.name)
+            const nameElements = within(container).getAllByText(normalizeText(student.name))
             expect(nameElements.length).toBeGreaterThan(0)
           })
 
@@ -92,13 +148,14 @@ describe('Property 17: UI displays error message on backend error response', () 
         async (errorMessage) => {
           cleanup()
           vi.clearAllMocks()
+          API.get.mockResolvedValue({ data: { available: true } })
           API.post.mockRejectedValueOnce({
             response: { data: { message: errorMessage } },
           })
 
           const container = renderActivate()
 
-          submitStep1(container, 'ETS023/15')
+          await submitStep1(container)
 
           await waitFor(() => {
             const alert = within(container).getByRole('alert')
@@ -116,7 +173,7 @@ describe('Property 17: UI displays error message on backend error response', () 
 
     const container = renderActivate()
 
-    submitStep1(container, 'ETS023/15')
+    await submitStep1(container)
 
     await waitFor(() => {
       const alert = within(container).getByRole('alert')
@@ -129,109 +186,84 @@ describe('Property 17: UI displays error message on backend error response', () 
 // ── Step flow integration tests ───────────────────────────────────────────────
 
 describe('Activate wizard step flow', () => {
-  it('Step 1 sends only student_id (no username) to /auth/activate', async () => {
-    API.post.mockResolvedValueOnce({ data: { name: 'Test Student', department: 'CS' } })
+  it('Step 1 sends student_id and email to /auth/send-otp', async () => {
+    API.post.mockResolvedValueOnce({ data: { message: 'OTP sent' } })
 
     const container = renderActivate()
-    submitStep1(container, 'ETS023/15')
+    await submitStep1(container)
 
     await waitFor(() => {
-      expect(API.post).toHaveBeenCalledWith('/auth/activate', { student_id: 'ETS023/15' })
+      expect(API.post).toHaveBeenCalledWith('/auth/send-otp', {
+        student_id: STUDENT_ID,
+        email: EMAIL,
+      })
     })
   })
 
-  it('advances to Step 3 email input after identity confirmation', async () => {
-    API.post.mockResolvedValueOnce({ data: { name: 'Test Student', department: 'CS' } })
+  it('advances to Step 2 OTP input after the code is sent', async () => {
+    API.post.mockResolvedValueOnce({ data: { message: 'OTP sent' } })
 
     const container = renderActivate()
-    submitStep1(container, 'ETS023/15')
-
-    await waitFor(() => within(container).getByText('Test Student'))
-
-    fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
-
-    await waitFor(() => {
-      expect(within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i)).toBeInTheDocument()
-    })
-  })
-
-  it('advances to OTP input after successful send-otp', async () => {
-    API.post
-      .mockResolvedValueOnce({ data: { name: 'Test Student', department: 'CS' } }) // activate
-      .mockResolvedValueOnce({ data: { message: 'OTP sent' } }) // send-otp
-
-    const container = renderActivate()
-    submitStep1(container, 'ETS023/15')
-
-    await waitFor(() => within(container).getByText('Test Student'))
-    fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
-
-    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i))
-
-    fireEvent.change(
-      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i),
-      { target: { value: 'test.student@aastustudent.edu.et' } }
-    )
-    fireEvent.click(within(container).getByRole('button', { name: /send verification code/i }))
+    await submitStep1(container)
 
     await waitFor(() => {
       expect(within(container).getByPlaceholderText('123456')).toBeInTheDocument()
-      expect(within(container).getByRole('button', { name: /resend code/i })).toBeInTheDocument()
+      // Label flips between "Resend Code" and "Resend in Ns" while cooling down.
+      expect(within(container).getByRole('button', { name: /resend/i })).toBeInTheDocument()
     })
   })
 
-  it('advances to Step 4 password creation after successful OTP verification', async () => {
+  it('advances to Step 3 identity confirmation after successful OTP verification', async () => {
     API.post
-      .mockResolvedValueOnce({ data: { name: 'Test Student', department: 'CS' } })
       .mockResolvedValueOnce({ data: { message: 'OTP sent' } })
-      .mockResolvedValueOnce({ data: { otpToken: 'mock-token-123' } })
+      .mockResolvedValueOnce({ data: verifyOtpResponse })
 
     const container = renderActivate()
-    submitStep1(container, 'ETS023/15')
+    await submitStep1(container)
+    submitOtp(container)
 
-    await waitFor(() => within(container).getByText('Test Student'))
+    await waitFor(() => {
+      expect(within(container).getByText('Test Student')).toBeInTheDocument()
+      expect(within(container).getByText('Confirm Your Identity')).toBeInTheDocument()
+    })
+    expect(API.post).toHaveBeenCalledWith('/auth/verify-otp', {
+      student_id: STUDENT_ID,
+      code: '123456',
+    })
+  })
+
+  it('advances to Step 4 password creation after confirming identity', async () => {
+    API.post
+      .mockResolvedValueOnce({ data: { message: 'OTP sent' } })
+      .mockResolvedValueOnce({ data: verifyOtpResponse })
+
+    const container = renderActivate()
+    await submitStep1(container)
+    submitOtp(container)
+
+    await waitFor(() => within(container).getByRole('button', { name: /confirm/i }))
     fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
 
-    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i))
-    fireEvent.change(
-      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i),
-      { target: { value: 'test.student@aastustudent.edu.et' } }
-    )
-    fireEvent.click(within(container).getByRole('button', { name: /send verification code/i }))
-
-    await waitFor(() => within(container).getByPlaceholderText('123456'))
-    fireEvent.change(within(container).getByPlaceholderText('123456'), { target: { value: '123456' } })
-    fireEvent.click(within(container).getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => {
       expect(within(container).getByText('Set Your Password')).toBeInTheDocument()
       // No email field in Step 4
-      expect(within(container).queryByLabelText(/email/i)).not.toBeInTheDocument()
+      expect(within(container).queryByPlaceholderText(EMAIL_PLACEHOLDER)).not.toBeInTheDocument()
     })
   })
 
   it('Step 4 shows inline error when passwords do not match without calling API', async () => {
     API.post
-      .mockResolvedValueOnce({ data: { name: 'Test Student', department: 'CS' } })
       .mockResolvedValueOnce({ data: { message: 'OTP sent' } })
-      .mockResolvedValueOnce({ data: { otpToken: 'mock-token-123' } })
+      .mockResolvedValueOnce({ data: verifyOtpResponse })
 
     const container = renderActivate()
-    submitStep1(container, 'ETS023/15')
+    await submitStep1(container)
+    submitOtp(container)
 
-    await waitFor(() => within(container).getByText('Test Student'))
+    await waitFor(() => within(container).getByRole('button', { name: /confirm/i }))
     fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
 
-    await waitFor(() => within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i))
-    fireEvent.change(
-      within(container).getByPlaceholderText(/firstname\.fathername@aastustudent\(s\)\.edu\.et/i),
-      { target: { value: 'test.student@aastustudent.edu.et' } }
-    )
-    fireEvent.click(within(container).getByRole('button', { name: /send verification code/i }))
-
-    await waitFor(() => within(container).getByPlaceholderText('123456'))
-    fireEvent.change(within(container).getByPlaceholderText('123456'), { target: { value: '654321' } })
-    fireEvent.click(within(container).getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => within(container).getByText('Set Your Password'))
 
@@ -248,5 +280,41 @@ describe('Activate wizard step flow', () => {
     // set-password API should NOT have been called
     const setPasswordCalls = API.post.mock.calls.filter(c => c[0] === '/auth/set-password')
     expect(setPasswordCalls.length).toBe(0)
+  })
+
+  it('sets the password and logs in when both passwords match', async () => {
+    API.post
+      .mockResolvedValueOnce({ data: { message: 'OTP sent' } })
+      .mockResolvedValueOnce({ data: verifyOtpResponse })
+      .mockResolvedValueOnce({ data: { message: 'Password set' } })
+      .mockResolvedValueOnce({ data: { user: { id: 'u1', role: 'STUDENT' }, token: 'jwt-123' } })
+
+    const container = renderActivate()
+    await submitStep1(container)
+    submitOtp(container)
+
+    await waitFor(() => within(container).getByRole('button', { name: /confirm/i }))
+    fireEvent.click(within(container).getByRole('button', { name: /confirm/i }))
+
+
+    await waitFor(() => within(container).getByText('Set Your Password'))
+
+    const passwordInputs = container.querySelectorAll('input[type="password"]')
+    fireEvent.change(passwordInputs[0], { target: { value: 'password1' } })
+    fireEvent.change(passwordInputs[1], { target: { value: 'password1' } })
+    fireEvent.click(within(container).getByRole('button', { name: /activate account/i }))
+
+    await waitFor(() => {
+      expect(API.post).toHaveBeenCalledWith('/auth/set-password', {
+        student_id: STUDENT_ID,
+        otpToken: 'mock-token-123',
+        password: 'password1',
+      })
+      expect(API.post).toHaveBeenCalledWith('/auth/login', {
+        username: 'ETS02315',
+        password: 'password1',
+      })
+    })
+    expect(mockLogin).toHaveBeenCalledWith({ id: 'u1', role: 'STUDENT' }, 'jwt-123')
   })
 })

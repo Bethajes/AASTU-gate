@@ -23,8 +23,8 @@ function filterStudents(students, searchQuery) {
   const q = searchQuery.trim().toLowerCase()
   if (!q) return []
   return students.filter(s => {
-    const name = (s.full_name ?? s.name ?? '').toLowerCase()
-    const sid  = (s.student_id ?? s.id ?? '').toLowerCase()
+    const name = (s.full_name ?? s.name ?? '').trim().toLowerCase()
+    const sid  = (s.student_id ?? s.id ?? '').trim().toLowerCase()
     return name.includes(q) || sid.includes(q)
   })
 }
@@ -33,9 +33,15 @@ function filterStudents(students, searchQuery) {
 // Arbitraries
 // ---------------------------------------------------------------------------
 
+// Names and IDs must be non-blank for "search by exact value" to be
+// meaningful; leading/trailing whitespace is deliberately still allowed so the
+// filter's normalization is exercised.
+const nonBlankString = (maxLength) =>
+  fc.string({ minLength: 1, maxLength }).filter(s => s.trim().length > 0)
+
 const studentArb = fc.record({
-  full_name:  fc.string({ minLength: 1, maxLength: 40 }),
-  student_id: fc.string({ minLength: 1, maxLength: 20 }),
+  full_name:  nonBlankString(40),
+  student_id: nonBlankString(20),
 })
 
 const studentListArb = fc.array(studentArb, { minLength: 0, maxLength: 50 })
@@ -66,8 +72,8 @@ describe('Property 5: Student search filter returns only matching results', () =
 
             // Every result must match the query in name or student_id
             for (const student of results) {
-              const name = (student.full_name ?? student.name ?? '').toLowerCase()
-              const sid  = (student.student_id ?? student.id ?? '').toLowerCase()
+              const name = (student.full_name ?? student.name ?? '').trim().toLowerCase()
+              const sid  = (student.student_id ?? student.id ?? '').trim().toLowerCase()
               const matches = name.includes(q) || sid.includes(q)
               expect(matches).toBe(true)
             }

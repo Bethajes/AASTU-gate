@@ -6,7 +6,7 @@
   - Add back-relation fields to the `Laptop` and `User` models in the schema
   - _Requirements: 1.3_
 
-- [-] 2. Implement the transfer controller functions
+- [ ] 2. Implement the transfer controller functions
   - [x] 2.1 Implement `transferLaptop` in `backend/src/controllers/laptop.controller.js`
     - Validate that the laptop exists (404 if not)
     - Validate that `targetStudentId` resolves to an activated User account (400 if not)

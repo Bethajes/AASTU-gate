@@ -33,25 +33,6 @@ const validRowArb = fc.record({
   department: safeStringArb,
 });
 
-/** Arbitrary for a valid student row with an optional photo field */
-const validRowWithPhotoArb = fc.record({
-  id: safeStringArb,
-  name: safeStringArb,
-  department: safeStringArb,
-  photo: fc.oneof(fc.constant(''), safeStringArb),
-});
-
-/** Convert an array of row objects to a CSV string with a header row */
-function rowsToCSV(rows) {
-  if (rows.length === 0) return '';
-  const headers = Object.keys(rows[0]);
-  const lines = [headers.join(',')];
-  for (const row of rows) {
-    lines.push(headers.map((h) => row[h] ?? '').join(','));
-  }
-  return lines.join('\n');
-}
-
 /** Shuffle an array (returns a new array) */
 function shuffle(arr) {
   const a = [...arr];

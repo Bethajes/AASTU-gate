@@ -1,26 +1,159 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import API from '../api/axios'
 import AASTULogo from '../components/AASTULogo'
 import AASTUFooter from '../components/AASTUFooter'
-import { theme } from '../styles/theme'
-import { useTranslation } from 'react-i18next'
+import './login.css'
+
+const HERO_IMAGE = {
+  desktop: '/hero/campus-hero-1200.jpg',
+  mobile: '/hero/campus-hero-mobile.jpg',
+  alt:
+    'A university student working on a laptop in a modern lecture hall on campus',
+}
+
+/* ── Icons (inline SVG — no extra dependency) ─────────────────────────────── */
+
+const ShieldIcon = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M12 2.6 4.5 5.7v5.6c0 4.6 3.1 8.8 7.5 10.1 4.4-1.3 7.5-5.5 7.5-10.1V5.7L12 2.6Z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+    />
+    <path
+      d="m8.9 12 2.2 2.2 4-4.4"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+const UserIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="8.2" r="3.6" stroke="currentColor" strokeWidth="1.6" />
+    <path
+      d="M4.8 19.6a7.2 7.2 0 0 1 14.4 0"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+  </svg>
+)
+
+const LockIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="4.6" y="10.4" width="14.8" height="9.8" rx="2.4" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M8.4 10.4V7.8a3.6 3.6 0 0 1 7.2 0v2.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+)
+
+const EyeIcon = ({ size = 17, off = false }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M2.6 12S6 5.9 12 5.9 21.4 12 21.4 12 18 18.1 12 18.1 2.6 12 2.6 12Z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+    />
+    <circle cx="12" cy="12" r="2.9" stroke="currentColor" strokeWidth="1.6" />
+    {off && (
+      <path d="m4.2 4.2 15.6 15.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    )}
+  </svg>
+)
+
+const AlertIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M12 7.6v5.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="12" cy="16.1" r="1" fill="currentColor" />
+  </svg>
+)
+
+const CheckIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+    <path
+      d="m8.4 12.2 2.4 2.4 4.8-5.2"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/* ── Page ─────────────────────────────────────────────────────────────────── */
 
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
+
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const usernameRef = useRef(null)
+
   const successMessage = location.state?.message || ''
   const currentLang = i18n.language?.startsWith('am') ? 'am' : 'en'
 
+  const steps = [
+    {
+      n: '1',
+      title: t('login.step1Title'),
+      desc: t('login.step1Desc'),
+    },
+    {
+      n: '2',
+      title: t('login.step2Title'),
+      desc: t('login.step2Desc'),
+    },
+    {
+      n: '3',
+      title: t('login.step3Title'),
+      desc: t('login.step3Desc'),
+    },
+    {
+      n: '4',
+      title: t('login.step4Title'),
+      desc: t('login.step4Desc'),
+    },
+  ]
+
+  const clearFieldError = (field) => {
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev))
+    if (error) setError('')
+  }
+
+  const validate = () => {
+    const errs = {}
+    if (!username.trim()) errs.username = t('login.errUsernameRequired')
+    if (!password) errs.password = t('login.errPasswordRequired')
+    return errs
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    const errs = validate()
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs)
+      // Move focus to the first field that needs attention.
+      if (errs.username) usernameRef.current?.focus()
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
@@ -30,407 +163,237 @@ export default function Login() {
       else if (res.data.user.role === 'GUARD') navigate('/guard')
       else if (res.data.user.role === 'ADMIN') navigate('/admin')
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed')
+      if (!err.response) {
+        setError(t('login.networkError'))
+      } else {
+        setError(err.response.data?.message || t('login.error'))
+      }
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div style={s.page}>
+    <div className="login-page">
       {/* ── Header ── */}
-      <header style={s.header}>
-        <AASTULogo orientation="horizontal" showText={false} tone="onDark" style={{ maxHeight: 44 }} />
-        <div style={s.headerCenter}>
-          <span style={s.headerTitle}>AASTU Campus Asset & Security Registry</span>
-          <span style={s.headerSub}>Laptop Gate Pass System</span>
+      <header className="login-header">
+        <Link to="/login" className="login-header__brand" aria-label="AASTU Gate Pass — home">
+          <AASTULogo
+            orientation="horizontal"
+            showText={false}
+            tone="onDark"
+            className="login-header__logo"
+          />
+        </Link>
+
+        <div className="login-header__titles">
+          <span className="login-header__title">AASTU Campus Asset &amp; Security Registry</span>
+          <span className="login-header__sub">Laptop Gate Pass System</span>
         </div>
-        <div style={s.langSwitcher}>
+
+        <div className="login-lang" role="group" aria-label="Language">
           <button
             type="button"
-            style={{ ...s.langBtn, ...(currentLang === 'en' ? s.langBtnActive : {}) }}
+            className="login-lang__btn"
+            aria-pressed={currentLang === 'en'}
             onClick={() => i18n.changeLanguage('en')}
-            aria-label="Switch to English"
-          >EN</button>
+          >
+            EN
+          </button>
           <button
             type="button"
-            style={{ ...s.langBtn, ...(currentLang === 'am' ? s.langBtnActive : {}) }}
+            className="login-lang__btn"
+            aria-pressed={currentLang === 'am'}
             onClick={() => i18n.changeLanguage('am')}
-            aria-label="Switch to Amharic"
-          >አማ</button>
+          >
+            አማ
+          </button>
         </div>
       </header>
 
-      {/* ── Body: hero + form ── */}
-      <div style={s.body}>
-        {/* Left hero */}
-        <div className="login-hero" style={s.hero}>
-          <div style={s.heroContent}>
-            <h1 style={s.heroTitle}>Campus Laptop<br />Gate Pass System</h1>
-            <p style={s.heroDesc}>
-              Official asset verification and campus access management platform for AASTU students, security staff, and administrators.
-            </p>
-
-            {/* Student guide */}
-            <div style={s.guideSection}>
-              <div style={s.guideHeading}>
-                <span style={s.guideIcon}>📖</span>
-                <span style={s.guideHeadingText}>How to get started as a student</span>
-              </div>
-              <div style={s.guideSteps}>
-                {[
-                  {
-                    step: '1',
-                    title: 'Activate your account',
-                    desc: 'Click "Activate your account" below and enter your student ID (e.g. ETS02315/14) and set a password.',
-                  },
-                  {
-                    step: '2',
-                    title: 'Verify your email',
-                    desc: 'Check your university email for a verification link and confirm your address.',
-                  },
-                  {
-                    step: '3',
-                    title: 'Sign in & register your laptop',
-                    desc: 'Log in with your credentials, then go to your dashboard to add your laptop details.',
-                  },
-                  {
-                    step: '4',
-                    title: 'Show your QR at the gate',
-                    desc: 'Present the QR code from your dashboard to the security guard when leaving campus with your laptop.',
-                  },
-                ].map(item => (
-                  <div key={item.step} style={s.guideStep}>
-                    <div style={s.stepBadge}>{item.step}</div>
-                    <div style={s.stepBody}>
-                      <span style={s.stepTitle}>{item.title}</span>
-                      <span style={s.stepDesc}>{item.desc}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* ── Body ── */}
+      <div className="login-body">
+        {/* Brand / hero */}
+        <section className="login-hero" aria-labelledby="hero-heading">
+          <div>
+            <span className="login-hero__eyebrow">{t('login.heroEyebrow')}</span>
+            <h1 id="hero-heading" className="login-hero__title">
+              {t('login.heroTitle')}
+            </h1>
+            <p className="login-hero__desc">{t('login.heroDesc')}</p>
           </div>
-          <p style={s.heroFooter}>Addis Ababa Science and Technology University · Akaky Kaliti</p>
-        </div>
 
-        {/* Right form */}
-        <div style={s.formPanel}>
-          <div style={s.card}>
-            <div style={s.cardHeader}>
-              <div style={s.cardIcon}>🔐</div>
-              <h2 style={s.cardTitle}>Sign in to your account</h2>
-              <p style={s.cardSub}>Enter your university credentials to continue</p>
+          <figure className="login-hero__figure">
+            <picture>
+              <source media="(max-width: 768px)" srcSet={HERO_IMAGE.mobile} />
+              <img
+                src={HERO_IMAGE.desktop}
+                alt={HERO_IMAGE.alt}
+                className="login-hero__img"
+                width="1200"
+                height="900"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
+            </picture>
+            <figcaption className="login-hero__caption">
+              <span className="login-hero__captionDot" aria-hidden="true" />
+              <span>{t('login.heroTagline')}</span>
+            </figcaption>
+          </figure>
+
+          {/* Student guide */}
+          <div>
+            <h2 className="login-guide__title">{t('login.guideTitle')}</h2>
+            <ol className="login-guide__grid">
+              {steps.map((step) => (
+                <li key={step.n} className="login-step">
+                  <span className="login-step__num" aria-hidden="true">
+                    {step.n}
+                  </span>
+                  <span>
+                    <span className="login-step__title">{step.title}</span>
+                    <span className="login-step__desc">{step.desc}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* Login */}
+        <section className="login-panel">
+          <div className="login-card">
+            <div className="login-card__head">
+              <span className="login-card__shield">
+                <ShieldIcon />
+              </span>
+              <h2 className="login-card__title">{t('login.welcome')}</h2>
+              <p className="login-card__sub">{t('login.welcomeSub')}</p>
             </div>
 
             {error && (
-              <div style={s.alertError} role="alert">⚠️ {error}</div>
+              <div className="login-alert login-alert--error" role="alert">
+                <AlertIcon />
+                <span>{error}</span>
+              </div>
             )}
             {!error && successMessage && (
-              <div style={s.alertSuccess} role="status">✅ {successMessage}</div>
+              <div className="login-alert login-alert--success" role="status">
+                <CheckIcon />
+                <span>{successMessage}</span>
+              </div>
             )}
 
             <form onSubmit={handleSubmit} noValidate>
-              <div style={s.field}>
-                <label style={s.label} htmlFor="username">Username</label>
-                <input
-                  id="username"
-                  className="auth-input"
-                  style={s.input}
-                  type="text"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="e.g. ETS02315/14"
-                  autoComplete="username"
-                  required
-                />
-              </div>
-              <div style={s.field}>
-                <label style={s.label} htmlFor="password">Password</label>
-                <input
-                  id="password"
-                  className="auth-input"
-                  style={s.input}
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  required
-                />
+              <div className="login-field">
+                <label className="login-field__label" htmlFor="username">
+                  {t('login.username')}
+                </label>
+                <div className="login-field__control">
+                  <span className="login-field__icon">
+                    <UserIcon />
+                  </span>
+                  <input
+                    id="username"
+                    ref={usernameRef}
+                    className="login-field__input"
+                    type="text"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value)
+                      clearFieldError('username')
+                    }}
+                    placeholder={t('login.usernamePlaceholder')}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck="false"
+                    aria-invalid={!!fieldErrors.username}
+                    aria-describedby={fieldErrors.username ? 'username-error' : undefined}
+                    required
+                  />
+                </div>
+                {fieldErrors.username && (
+                  <p className="login-field__error" id="username-error">
+                    <AlertIcon size={13} />
+                    {fieldErrors.username}
+                  </p>
+                )}
               </div>
 
-              <div style={s.forgotRow}>
-                <Link to="/forgot-password" style={s.forgotLink}>Forgot password?</Link>
+              <div className="login-field login-field--password">
+                <label className="login-field__label" htmlFor="password">
+                  {t('login.password')}
+                </label>
+                <div className="login-field__control">
+                  <span className="login-field__icon">
+                    <LockIcon />
+                  </span>
+                  <input
+                    id="password"
+                    className="login-field__input"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      clearFieldError('password')
+                    }}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    aria-invalid={!!fieldErrors.password}
+                    aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="login-field__toggle"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+                    title={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+                  >
+                    <EyeIcon off={showPassword} />
+                  </button>
+                </div>
+                {fieldErrors.password && (
+                  <p className="login-field__error" id="password-error">
+                    <AlertIcon size={13} />
+                    {fieldErrors.password}
+                  </p>
+                )}
               </div>
 
-              <button style={s.submitBtn} type="submit" disabled={loading}>
-                {loading
-                  ? <span style={s.btnInner}><span style={s.spinner} /> Signing in…</span>
-                  : 'Sign In'}
+              <div className="login-row">
+                <span className="login-row__hint">{t('login.secureHint')}</span>
+                <Link to="/forgot-password" className="login-link">
+                  {t('login.forgotPassword')}
+                </Link>
+              </div>
+
+              <button className="login-btn login-btn--primary" type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <span className="login-spinner" aria-hidden="true" />
+                    {t('login.loading')}
+                  </>
+                ) : (
+                  t('login.submit')
+                )}
               </button>
+
+              <p className="login-sep">{t('login.noAccount')}</p>
+              <Link to="/activate" className="login-btn login-btn--secondary">
+                {t('login.activate')}
+              </Link>
             </form>
 
-            <div style={s.divider}>
-              <span style={s.dividerLine} />
-              <span style={s.dividerText}>New to the system?</span>
-              <span style={s.dividerLine} />
-            </div>
-
-            <Link to="/activate" style={s.activateBtn}>Activate your account</Link>
+            <p className="login-footnote">{t('login.footnote')}</p>
           </div>
-        </div>
+        </section>
       </div>
 
-      {/* ── Footer ── */}
       <AASTUFooter />
     </div>
   )
-}
-
-const s = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    background: '#f0f4ff',
-  },
-
-  // Header
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    flexWrap: 'wrap',
-    padding: '14px clamp(16px, 4vw, 40px)',
-    background: theme.headerGradient,
-    borderBottom: `3px solid ${theme.gold}`,
-    boxShadow: '0 4px 24px rgba(0,32,128,0.22)',
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
-  },
-  headerCenter: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    textAlign: 'center',
-    gap: 2,
-  },
-  headerTitle: {
-    color: 'rgba(255,255,255,0.95)',
-    fontSize: 'clamp(13px, 2vw, 16px)',
-    fontWeight: 700,
-    letterSpacing: '0.03em',
-  },
-  headerSub: {
-    color: theme.gold,
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-  },
-  langSwitcher: { display: 'flex', gap: 4 },
-  langBtn: {
-    padding: '5px 10px',
-    background: 'rgba(255,255,255,0.1)',
-    color: 'rgba(255,255,255,0.7)',
-    border: '1.5px solid rgba(255,255,255,0.25)',
-    borderRadius: 8,
-    cursor: 'pointer',
-    fontSize: 12,
-    fontWeight: 600,
-  },
-  langBtnActive: {
-    background: theme.gold,
-    color: '#0033A0',
-    border: `1.5px solid ${theme.gold}`,
-  },
-
-  // Body split
-  body: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-
-  // Hero (left)
-  hero: {
-    flex: '0 0 44%',
-    minWidth: 300,
-    background: 'linear-gradient(160deg, #0033A0 0%, #001a6e 55%, #000d3a 100%)',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    padding: 'clamp(28px, 4vw, 52px)',
-    overflow: 'hidden',
-  },
-  heroContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 20,
-  },
-  heroTitle: {
-    margin: 0,
-    fontSize: 'clamp(22px, 2.8vw, 34px)',
-    fontWeight: 800,
-    color: '#fff',
-    lineHeight: 1.2,
-    letterSpacing: '-0.02em',
-  },
-  heroDesc: {
-    margin: 0,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.65)',
-    lineHeight: 1.7,
-    maxWidth: 380,
-  },
-
-  // Student guide
-  guideSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-    marginTop: 4,
-  },
-  guideHeading: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-  },
-  guideIcon: { fontSize: 16 },
-  guideHeadingText: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: theme.gold,
-    letterSpacing: '0.02em',
-    textTransform: 'uppercase',
-  },
-  guideSteps: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 10,
-  },
-  guideStep: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 12,
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 12,
-    padding: '11px 14px',
-  },
-  stepBadge: {
-    flexShrink: 0,
-    width: 26,
-    height: 26,
-    borderRadius: '50%',
-    background: theme.gold,
-    color: '#0033A0',
-    fontWeight: 800,
-    fontSize: 13,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-  },
-  stepBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-  },
-  stepTitle: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#fff',
-  },
-  stepDesc: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.65)',
-    lineHeight: 1.5,
-  },
-
-  heroFooter: { fontSize: 11, color: 'rgba(255,255,255,0.35)', margin: '16px 0 0' },
-
-  // Form panel (right)
-  formPanel: {
-    flex: 1,
-    minWidth: 300,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '40px 24px',
-    background: '#f0f4ff',
-  },
-  card: {
-    background: '#fff',
-    borderRadius: 20,
-    padding: '40px 36px',
-    width: '100%',
-    maxWidth: 420,
-    boxShadow: '0 4px 32px rgba(0,51,160,0.10), 0 1px 4px rgba(0,0,0,0.06)',
-    border: '1px solid #e2e8f0',
-    borderTop: `4px solid ${theme.gold}`,
-    animation: 'fadeIn 0.4s ease-out',
-  },
-  cardHeader: { textAlign: 'center', marginBottom: 28 },
-  cardIcon: { fontSize: 34, marginBottom: 10 },
-  cardTitle: { margin: '0 0 6px', fontSize: 22, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.02em' },
-  cardSub: { margin: 0, fontSize: 13, color: '#64748b' },
-
-  alertError: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    background: '#fff5f5', color: '#c53030',
-    border: '1px solid #fed7d7',
-    padding: '11px 14px', borderRadius: 10, marginBottom: 18, fontSize: 13,
-  },
-  alertSuccess: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    background: '#f0fff4', color: '#276749',
-    border: '1px solid #c6f6d5',
-    padding: '11px 14px', borderRadius: 10, marginBottom: 18, fontSize: 13,
-  },
-
-  field: { marginBottom: 18 },
-  label: { display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: '#374151' },
-  input: {
-    width: '100%', padding: '11px 14px',
-    borderRadius: 10, border: '1.5px solid #e2e8f0',
-    fontSize: 14, color: '#0f172a', background: '#f8fafc',
-    outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
-    boxSizing: 'border-box',
-  },
-
-  forgotRow: { display: 'flex', justifyContent: 'flex-end', marginBottom: 20, marginTop: -6 },
-  forgotLink: { fontSize: 13, color: '#0033A0', fontWeight: 600, textDecoration: 'none' },
-
-  submitBtn: {
-    width: '100%', padding: 13,
-    background: 'linear-gradient(135deg, #0033A0 0%, #002080 100%)',
-    color: '#fff', border: 'none', borderRadius: 10,
-    fontSize: 15, fontWeight: 700, cursor: 'pointer',
-    letterSpacing: '0.01em', transition: 'opacity 0.2s',
-  },
-  btnInner: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  spinner: {
-    display: 'inline-block', width: 14, height: 14,
-    border: '2px solid rgba(255,255,255,0.4)',
-    borderTop: '2px solid #fff',
-    borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-  },
-
-  divider: { display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 16px' },
-  dividerLine: { flex: 1, height: 1, background: '#e2e8f0' },
-  dividerText: { fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap', fontWeight: 500 },
-
-  activateBtn: {
-    display: 'block', width: '100%', padding: 12,
-    background: 'transparent', color: '#0033A0',
-    border: '1.5px solid #0033A0', borderRadius: 10,
-    fontSize: 14, fontWeight: 600, textAlign: 'center',
-    textDecoration: 'none', boxSizing: 'border-box',
-  },
 }

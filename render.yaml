@@ -1,0 +1,47 @@
+# Render Blueprint for the AASTU Laptop Gate Pass backend.
+# Deploy from the Render Dashboard: New + > Blueprint, then select this repo.
+#
+# Secrets marked `sync: false` are prompted for in the Render Dashboard and are
+# never stored in this file.
+
+databases:
+  - name: aastu-gate-db
+    databaseName: aastu_laptop
+    user: aastu
+    plan: free
+    region: frankfurt
+
+services:
+  - type: web
+    name: aastu-gate-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    # Apply pending Prisma migrations before starting the API.
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /api/health
+    # Runs once after the first successful deploy: creates/resets the default
+    # ADMIN and GUARD accounts.
+    initialDeployHook: npm run seed
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aastu-gate-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_VERSION
+        value: "22"
+      # Comma-separated list of allowed frontend origins.
+      - key: FRONTEND_URL
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false

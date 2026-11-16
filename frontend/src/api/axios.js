@@ -1,13 +1,17 @@
 import axios from 'axios'
 
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+const isLocalHost = LOCAL_HOSTNAMES.has(window.location.hostname)
+
+const DEPLOYED_API_URL =
+  import.meta.env.VITE_API_URL || 'https://aastu-gate-backend.onrender.com/api'
+
 const API = axios.create({
-  // This checks if the app is running on localhost. 
-  // If it is, it uses your local backend; otherwise, it uses the Render URL.
-  baseURL: window.location.hostname === 'localhost' 
-    ? 'http://localhost:5001/api' 
-    : 'https://aastu-gate-backend.onrender.com/api',
-  headers: { 
-    'Content-Type': 'application/json' 
+  // In local development, requests go through the Vite proxy (vite.config.js)
+  // to the local backend. Deployed builds use Render (or VITE_API_URL).
+  baseURL: isLocalHost ? '/api' : DEPLOYED_API_URL,
+  headers: {
+    'Content-Type': 'application/json'
   }
 });
 

@@ -654,6 +654,9 @@ function Topbar({ user, onLogout, activeTab, collapsed, onChangePassword }) {
   }, [])
 
   useEffect(() => {
+    // Initial fetch + polling: this synchronises with a remote server, and the
+    // setState happens in the promise callback rather than in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNotifications()
     const interval = setInterval(loadNotifications, 30000)
     return () => clearInterval(interval)
@@ -940,20 +943,20 @@ function StatCards({ laptops, logs }) {
 
 const CHART_COLORS = { primary: '#2563eb', secondary: '#10b981', accent: '#6366f1', warm: '#f59e0b' }
 
+function CustomTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+      <p style={{ fontWeight: 600, color: '#334155', marginBottom: 3 }}>{label}</p>
+      {payload.map(p => (
+        <p key={p.dataKey} style={{ color: p.color }}>{p.dataKey}: <strong>{p.value}</strong></p>
+      ))}
+    </div>
+  )
+}
+
 function OverviewTab({ chartData }) {
   const { hourly, daily, weekly, statusDistribution, topStudents } = chartData
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null
-    return (
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        <p style={{ fontWeight: 600, color: '#334155', marginBottom: 3 }}>{label}</p>
-        {payload.map(p => (
-          <p key={p.dataKey} style={{ color: p.color }}>{p.dataKey}: <strong>{p.value}</strong></p>
-        ))}
-      </div>
-    )
-  }
 
   return (
     <div className="fade-up">
@@ -1024,7 +1027,7 @@ function OverviewTab({ chartData }) {
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value"
-                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false}
+                  label={({ percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false}
                 >
                   {statusDistribution.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />

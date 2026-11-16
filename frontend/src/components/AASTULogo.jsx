@@ -6,11 +6,13 @@ import { theme } from '../styles/theme'
  * @param {'horizontal' | 'stacked' | 'mark'} orientation — layout of the official asset
  * @param {boolean} showText — when the image fails to load, show text next to the fallback mark
  * @param {'onDark' | 'onLight'} tone — fallback colors for header (dark) vs card (light)
+ * @param {string} [className] — optional class for layout/responsive sizing
  */
 export default function AASTULogo({
   orientation = 'stacked',
   showText = true,
   tone = 'onLight',
+  className,
   style: outerStyle,
 }) {
   const [failed, setFailed] = useState(false)
@@ -23,6 +25,7 @@ export default function AASTULogo({
         orientation={orientation}
         showText={showText}
         tone={tone}
+        className={className}
         style={outerStyle}
       />
     )
@@ -32,10 +35,13 @@ export default function AASTULogo({
     display: 'block',
     objectFit: 'contain',
     flexShrink: 0,
-    maxHeight: layout.maxHeight,
-    maxWidth: layout.maxWidth,
     width: 'auto',
     height: 'auto',
+    // When a className is supplied the stylesheet owns the height so it can
+    // respond to breakpoints; keep a width cap as a safety net either way.
+    ...(className
+      ? { maxWidth: layout.maxWidth }
+      : { maxHeight: layout.maxHeight, maxWidth: layout.maxWidth }),
     ...outerStyle,
   }
 
@@ -43,13 +49,14 @@ export default function AASTULogo({
     <img
       src={src}
       alt="Addis Ababa Science and Technology University logo"
+      className={className}
       style={imgStyle}
       onError={() => setFailed(true)}
     />
   )
 }
 
-function FallbackLogo({ orientation, showText, tone, style: outerStyle }) {
+function FallbackLogo({ orientation, showText, tone, className, style: outerStyle }) {
   const gold = theme.gold
   const onDark = tone === 'onDark'
   const titleColor = onDark ? theme.white : theme.blueBright
@@ -78,7 +85,7 @@ function FallbackLogo({ orientation, showText, tone, style: outerStyle }) {
 
   if (orientation === 'mark' || !showText) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', ...outerStyle }}>
+      <div className={className} style={{ display: 'flex', alignItems: 'center', ...outerStyle }}>
         {mark}
       </div>
     )
@@ -88,6 +95,7 @@ function FallbackLogo({ orientation, showText, tone, style: outerStyle }) {
 
   return (
     <div
+      className={className}
       style={{
         display: 'flex',
         alignItems: 'center',

@@ -172,7 +172,7 @@ export default function StudentLaptopsPanel({ student, onClose }) {
     try {
       const res = await API.get(`/laptops/${laptopId}/transfer-logs`)
       setTransferLogs(prev => ({ ...prev, [laptopId]: Array.isArray(res.data) ? res.data : [] }))
-    } catch (err) {
+    } catch {
       setTransferLogs(prev => ({ ...prev, [laptopId]: [] }))
     } finally {
       setLoadingHistory(null)

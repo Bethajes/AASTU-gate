@@ -11,7 +11,7 @@ const isUndefinedTable = (err) =>
   err && (err.code === '42P01' || /relation .* does not exist/i.test(err.message || ''))
 
 async function findUserByEmail(email) {
-  const r = await pool.query(`SELECT * FROM "User" WHERE "email" = $1`, [email])
+  const r = await pool.query(`SELECT * FROM "User" WHERE LOWER("email") = LOWER($1)`, [email])
   return r.rows[0] || null
 }
 
@@ -85,21 +85,39 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   console.log('LOGIN body:', JSON.stringify(req.body), '| content-type:', req.headers?.['content-type'])
   const { email, password, username } = req.body
+  const identifier = String(username !== undefined ? username : (email || '')).trim()
   try {
-    // --- Username login path ---
-    if (username !== undefined) {
-      if (!username || String(username).trim() === '' || !password) {
+    // --- Username / identifier login path ---
+    if (username !== undefined || email !== undefined) {
+      if (!identifier || !password) {
         return res.status(401).json({ message: 'Invalid credentials' })
       }
 
-      const userResult = await pool.query(
-        `SELECT u.*, s."isActivated" AS "isActivated"
-         FROM "User" u
-         LEFT JOIN "Student" s ON u."studentId" = s."id"
-         WHERE u.username = $1 OR s.username = $1`,
-        [username]
-      )
-      const user = userResult.rows[0]
+      let user = null
+      // Email-shaped identifier: look up by email (case-insensitive)
+      if (identifier.includes('@')) {
+        user = await findUserByEmail(identifier)
+        // attach isActivated for students
+        if (user && user.studentId) {
+          const sRes = await pool.query(`SELECT "isActivated" FROM "Student" WHERE "id" = $1`, [user.studentId])
+          if (sRes.rows[0]) user.isActivated = sRes.rows[0].isActivated
+        }
+      } else {
+        // Normalize student IDs typed with a slash (e.g. "ETS0234/15" -> "ETS023415")
+        const normalized = identifier.replace(/\//g, '')
+        const userResult = await pool.query(
+          `SELECT u.*, s."isActivated" AS "isActivated"
+           FROM "User" u
+           LEFT JOIN "Student" s ON u."studentId" = s."id"
+           WHERE LOWER(u.username) = LOWER($1)
+              OR LOWER(s.username) = LOWER($1)
+              OR LOWER(s.id) = LOWER($1)
+              OR LOWER(REPLACE(s.id, '/', '')) = LOWER($2)
+              OR LOWER(u.email) = LOWER($1)`,
+          [identifier, normalized]
+        )
+        user = userResult.rows[0]
+      }
 
       if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' })

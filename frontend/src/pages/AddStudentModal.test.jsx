@@ -15,7 +15,6 @@ import API from '../api/axios'
 // A form state where at least one required field is blank/empty
 const invalidFormArb = fc.record({
   id:         fc.string(),
-  username:   fc.string(),
   name:       fc.string(),
   department: fc.string(),
 }).chain(base => {
@@ -29,7 +28,6 @@ const invalidFormArb = fc.record({
 // A fully valid form (all required fields non-empty, non-whitespace)
 const validFormArb = fc.record({
   id:         fc.string({ minLength: 1 }).filter(s => s.trim().length > 0),
-  username:   fc.string({ minLength: 1 }).filter(s => s.trim().length > 0),
   name:       fc.string({ minLength: 1 }).filter(s => s.trim().length > 0),
   department: fc.string({ minLength: 1 }).filter(s => s.trim().length > 0),
 })
@@ -75,9 +73,8 @@ describe('AddStudentModal', () => {
     render(<AddStudentModal onSuccess={onSuccess} onClose={onClose} />)
 
     // Leave id blank, fill the rest
-    fireEvent.change(document.getElementById('add-student-username'),   { target: { name: 'username',   value: 'jdoe' } })
-    fireEvent.change(document.getElementById('add-student-name'),       { target: { name: 'name',       value: 'John Doe' } })
-    fireEvent.change(document.getElementById('add-student-department'), { target: { name: 'department', value: 'CS' } })
+    fireEvent.change(document.getElementById('as-name'),       { target: { name: 'name',       value: 'John Doe' } })
+    fireEvent.change(document.getElementById('as-department'), { target: { name: 'department', value: 'CS' } })
 
     fireEvent.submit(screen.getByRole('dialog').querySelector('form'))
 

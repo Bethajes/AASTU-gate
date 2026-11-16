@@ -17,8 +17,6 @@ import {
   guestExit,
 } from '../api/gate'
 
-const BASE_URL = 'http://localhost:5001'
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function statusStyle(status) {
@@ -62,11 +60,13 @@ function QRScanner({ onDetected, onClose }) {
   const rafRef = useRef(null)
   const [camError, setCamError] = useState(null)
 
+  const tickRef = useRef(null)
+
   const tick = useCallback(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
-      rafRef.current = requestAnimationFrame(tick)
+      rafRef.current = requestAnimationFrame(() => tickRef.current())
       return
     }
     canvas.width = video.videoWidth
@@ -81,8 +81,14 @@ function QRScanner({ onDetected, onClose }) {
         return
       }
     }
-    rafRef.current = requestAnimationFrame(tick)
+    rafRef.current = requestAnimationFrame(() => tickRef.current())
   }, [onDetected])
+
+  // Keep an up-to-date handle so the animation loop can re-schedule itself
+  // without capturing a stale callback.
+  useEffect(() => {
+    tickRef.current = tick
+  }, [tick])
 
   useEffect(() => {
     navigator.mediaDevices
@@ -113,8 +119,7 @@ function QRScanner({ onDetected, onClose }) {
 
   return (
     <div style={styles.scannerWrap}>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video ref={videoRef} style={styles.video} playsInline />
+      <video ref={videoRef} style={styles.video} playsInline muted />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       <button style={styles.btnSecondary} onClick={onClose}>Stop Scanner</button>
     </div>
@@ -810,6 +815,17 @@ export default function GuardDashboard() {
                 <QRScanner onDetected={handleQRDetected} onClose={() => setShowScanner(false)} />
               )}
 
+              {blockReasonModal && record && (
+                <BlockReasonModal
+                  laptop={record}
+                  onConfirm={(reason) => {
+                    setBlockReasonModal(false)
+                    doLaptopAction('block', blockLaptop, reason)
+                  }}
+                  onCancel={() => setBlockReasonModal(false)}
+                />
+              )}
+
               {lookupError && <div style={styles.errorBox}>{lookupError}</div>}
 
               {guestList.length > 0 && (
@@ -1043,13 +1059,6 @@ const styles = {
   pageButton: { padding: '10px 18px', borderRadius: '999px', border: '1px solid #cbd5e1', backgroundColor: '#fff', color: '#1a237e', cursor: 'pointer', fontWeight: 700, minWidth: '110px' },
   pageStatus: { color: '#475569', fontSize: '14px' },
   // Legacy styles still used by some card components
-  field: { marginBottom: '16px' },
-  label: { display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#333' },
-  input: { width: '100%', padding: '14px 18px', borderRadius: '10px', border: '2px solid #cbd5e1', fontSize: '14px', outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff', color: '#1f2937', boxShadow: '0 4px 16px rgba(15,23,42,0.05)' },
-  guestCodeBox: { backgroundColor: '#fff8e1', border: '2px solid #FFD700', borderRadius: '12px', padding: '20px', textAlign: 'center', marginBottom: '24px' },
-  guestCodeLabel: { fontSize: '14px', color: '#e65100', marginBottom: '12px', fontWeight: '500' },
-  guestCodeNumber: { fontSize: '52px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '8px', color: '#0033A0', backgroundColor: '#fff', padding: '16px', borderRadius: '10px', marginBottom: '8px' },
-  guestCodeHint: { fontSize: '12px', color: '#888' },
   errorBox: { backgroundColor: '#fff0f0', color: '#c62828', padding: '12px 16px', borderRadius: '16px', marginTop: '16px', fontSize: '14px' },
   successBox: { backgroundColor: '#e8f5e9', color: '#166534', padding: '12px 16px', borderRadius: '16px', marginBottom: '16px', fontSize: '14px' },
   blockedAlert: { backgroundColor: '#ffebee', color: '#b91c1c', padding: '16px', borderRadius: '16px', marginBottom: '20px', fontWeight: 700, border: '1px solid #fca5a5' },

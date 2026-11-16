@@ -24,6 +24,10 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Components in this project deliberately co-locate exported helpers
+      // (e.g. REQUIRED_FIELDS/validateStudentForm) that tests import directly.
+      // Splitting them into separate modules only affects HMR ergonomics.
+      'react-refresh/only-export-components': 'warn',
     },
   },
 ])

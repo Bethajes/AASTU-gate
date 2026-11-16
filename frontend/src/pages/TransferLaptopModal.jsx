@@ -42,8 +42,8 @@ export default function TransferLaptopModal({ laptop, onClose, onSuccess }) {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
     return students.filter(s => {
-      const name = (s.full_name ?? s.name ?? '').toLowerCase()
-      const sid  = (s.student_id ?? s.id ?? '').toLowerCase()
+      const name = (s.full_name ?? s.name ?? '').trim().toLowerCase()
+      const sid  = (s.student_id ?? s.id ?? '').trim().toLowerCase()
       return name.includes(q) || sid.includes(q)
     })
   }, [students, searchQuery])
